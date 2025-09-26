@@ -1,0 +1,268 @@
+// Datasource & generator (adapter le provider et url selon ton .env)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+//////////////////////////////////////
+// ENUMS
+//////////////////////////////////////
+enum Role {
+  STUDENT
+  TEACHER
+  DEPARTMENT_HEAD
+  ADMIN
+}
+
+enum AbsenceStatus {
+  PENDING
+  JUSTIFIED
+  REFUSED
+}
+
+enum RoomType {
+  LECTURE
+  LAB
+  EXAM
+  OTHER
+}
+
+enum ScheduleStatus {
+  PLANNED
+  CANCELED
+  MAKEUP
+}
+
+//////////////////////////////////////
+// MODELS
+//////////////////////////////////////
+
+model User {
+  id          String    @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String    @unique
+  login       String    @unique
+  passwordHash String
+  role        Role
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  teacher       Teacher?
+  student       Student?
+  departmentHead DepartmentHead?
+  admin         Admin?
+  sentMessages     Message[] @relation("UserSentMessages")
+  receivedMessages Message[] @relation("UserReceivedMessages")
+
+  @@index([role])
+}
+
+model Department {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  specialties    Specialty[]
+  teachers       Teacher[]
+  departmentHead DepartmentHead?
+}
+
+model Specialty {
+  id            String     @id @default(cuid())
+  name          String
+  departmentId  String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  levels        Level[]
+  students      Student[]
+
+  @@index([departmentId])
+}
+
+model Level {
+  id           String     @id @default(cuid())
+  name         String
+  specialtyId  String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  specialty    Specialty  @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  groups       Group[]
+  subjects     Subject[]
+
+  @@index([specialtyId])
+}
+
+model Group {
+  id        String     @id @default(cuid())
+  name      String
+  levelId   String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  level     Level      @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  students  Student[]
+  schedules Schedule[]
+
+  @@index([levelId])
+}
+
+model Room {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  type      RoomType
+  capacity  Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  schedules Schedule[]
+}
+
+model Teacher {
+  id           String     @id @default(cuid())
+  userId       String     @unique
+  departmentId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  subjects     Subject[]
+  schedules    Schedule[]
+
+  @@index([departmentId])
+}
+
+model Student {
+  id           String     @id @default(cuid())
+  userId       String     @unique
+  groupId      String
+  specialtyId  String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group        Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  specialty    Specialty  @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  absences     Absence[]
+
+  @@index([groupId])
+  @@index([specialtyId])
+}
+
+model Subject {
+  id         String     @id @default(cuid())
+  name       String
+  levelId    String
+  teacherId  String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  level      Level      @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  teacher    Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schedules  Schedule[]
+
+  @@index([levelId])
+  @@index([teacherId])
+}
+
+model Schedule {
+  id         String        @id @default(cuid())
+  date       DateTime
+  startTime  DateTime
+  endTime    DateTime
+  roomId     String
+  subjectId  String
+  groupId    String
+  teacherId  String
+  status     ScheduleStatus @default(PLANNED)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  room       Room      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  subject    Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  group      Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher    Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  absences   Absence[]
+
+  @@index([date])
+  @@index([roomId])
+  @@index([teacherId])
+  @@index([groupId])
+}
+
+model Absence {
+  id           String        @id @default(cuid())
+  studentId    String
+  scheduleId   String
+  reason       String?
+  status       AbsenceStatus @default(PENDING)
+  justificationUrl String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schedule     Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([scheduleId])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  type        String
+  date        DateTime
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model DepartmentHead {
+  id           String     @id @default(cuid())
+  userId       String     @unique
+  departmentId String     @unique
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@index([departmentId])
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  level     String   @default("ADMIN") // SUPER_ADMIN, ADMIN, MODERATOR
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([level])
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  senderId      String
+  recipientId   String
+  content       String
+  createdAt     DateTime @default(now())
+
+  sender        User     @relation("UserSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient     User     @relation("UserReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createdAt])
+  @@index([recipientId, createdAt])
+}
