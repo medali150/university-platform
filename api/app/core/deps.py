@@ -34,7 +34,7 @@ async def get_current_user(
             detail="Invalid token"
         )
     
-    user = await prisma.user.find_unique(where={"id": user_id})
+    user = await prisma.utilisateur.find_unique(where={"id": user_id})
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -55,6 +55,16 @@ def require_role(allowed_roles: List[str]):
         return current_user
     
     return check_role
+
+
+async def get_current_admin_user(current_user = Depends(get_current_user)):
+    """Get current user and ensure they are an admin"""
+    if current_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
 
 
 # Role-specific dependencies

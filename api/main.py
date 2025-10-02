@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.db.prisma_client import lifespan
-from app.routers import auth, departments, specialties, admin, students_crud, teachers_crud, department_heads_crud, admin_dashboard
+from app.routers import auth, admin, departments, specialties
+from app.routers import students_crud, teachers_crud, department_heads_crud
+from app.routers import levels_crud, subjects_crud, schedules, admin_dashboard
+from app.routers import department_head_dashboard, department_head_timetable
+from app.routers import levels_public
 
 # Create FastAPI app
 app = FastAPI(
@@ -30,7 +34,13 @@ app.include_router(admin.router)
 app.include_router(students_crud.router)
 app.include_router(teachers_crud.router)
 app.include_router(department_heads_crud.router)
+app.include_router(levels_crud.router)
+app.include_router(subjects_crud.router)
+app.include_router(levels_public.router)
+app.include_router(schedules.router)
 app.include_router(admin_dashboard.router)
+app.include_router(department_head_dashboard.router)
+app.include_router(department_head_timetable.router)
 
 
 @app.get("/")
@@ -51,7 +61,12 @@ def root():
             "student_management": "/admin/students",
             "teacher_management": "/admin/teachers", 
             "department_head_management": "/admin/department-heads",
-            "admin_dashboard": "/admin/dashboard"
+            "level_management": "/admin/levels",
+            "subject_management": "/admin/subjects",
+            "schedule_management": "/schedules",
+            "admin_dashboard": "/admin/dashboard",
+            "department_head_timetable": "/department-head/timetable",
+            "department_head_dashboard": "/department-head"
         }
     }
 
@@ -62,8 +77,8 @@ async def health():
     from app.db.prisma_client import get_prisma
     try:
         prisma = await get_prisma()
-        # Test database connectivity
-        count = await prisma.user.count()
+        # Test database connectivity - use French table name
+        count = await prisma.utilisateur.count()
         return {
             "status": "healthy",
             "database": "connected",

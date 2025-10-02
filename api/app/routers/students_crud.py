@@ -21,8 +21,8 @@ async def get_all_students(
 ):
     """Get all students with optional filters (Admin only)"""
     try:
-        # Build filter conditions
-        where_conditions = {"role": "STUDENT"}
+        # Build filter conditions for Student model
+        where_conditions = {}
         
         # Add filters if provided
         if department_id:
@@ -37,42 +37,46 @@ async def get_all_students(
         students = await prisma.student.find_many(
             where=where_conditions,
             include={
-                "user": {
-                    "select": {
-                        "id": True,
-                        "firstName": True,
-                        "lastName": True,
-                        "email": True,
-                        "login": True,
-                        "role": True,
-                        "createdAt": True,
-                        "updatedAt": True
-                    }
-                },
+                "user": True,
                 "specialty": {
                     "include": {
                         "department": True
                     }
                 },
-                "level": True,
-                "group": True
+                "group": {
+                    "include": {
+                        "level": True
+                    }
+                }
             }
         )
         
         # Transform the data to match UserResponse format
         result = []
         for student in students:
-            user_data = student.user
-            user_data.update({
-                "studentInfo": {
-                    "id": student.id,
-                    "specialty": student.specialty.name if student.specialty else None,
-                    "department": student.specialty.department.name if student.specialty and student.specialty.department else None,
-                    "level": student.level.name if student.level else None,
-                    "group": student.group.name if student.group else None
+            if student.user:
+                user_data = {
+                    "id": student.user.id,  # User ID
+                    "studentRecordId": student.id,  # Student record ID (THIS is what we need for delete)
+                    "firstName": student.user.firstName,
+                    "lastName": student.user.lastName,
+                    "email": student.user.email,
+                    "login": student.user.login,
+                    "role": student.user.role,
+                    "createdAt": student.user.createdAt,
+                    "updatedAt": student.user.updatedAt,
+                    "studentInfo": {
+                        "id": student.id,  # Also in nested object for compatibility
+                        "specialty": student.specialty.name if student.specialty else None,
+                        "specialtyId": student.specialtyId if student.specialtyId else None,
+                        "department": student.specialty.department.name if student.specialty and student.specialty.department else None,
+                        "level": student.group.level.name if student.group and student.group.level else None,
+                        "levelId": student.group.levelId if student.group and student.group.levelId else None,
+                        "group": student.group.name if student.group else None,
+                        "groupId": student.groupId if student.groupId else None
+                    }
                 }
-            })
-            result.append(user_data)
+                result.append(user_data)
             
         return result
     except Exception as e:
@@ -96,8 +100,11 @@ async def get_student_by_id(
                         "department": True
                     }
                 },
-                "level": True,
-                "group": True
+                "group": {
+                    "include": {
+                        "level": True
+                    }
+                }
             }
         )
         
@@ -108,16 +115,29 @@ async def get_student_by_id(
             )
         
         # Transform the data
-        user_data = student.user
-        user_data.update({
+        if not student.user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student user data not found"
+            )
+            
+        user_data = {
+            "id": student.user.id,
+            "firstName": student.user.firstName,
+            "lastName": student.user.lastName,
+            "email": student.user.email,
+            "login": student.user.login,
+            "role": student.user.role,
+            "createdAt": student.user.createdAt,
+            "updatedAt": student.user.updatedAt,
             "studentInfo": {
                 "id": student.id,
                 "specialty": student.specialty.name if student.specialty else None,
                 "department": student.specialty.department.name if student.specialty and student.specialty.department else None,
-                "level": student.level.name if student.level else None,
+                "level": student.group.level.name if student.group and student.group.level else None,
                 "group": student.group.name if student.group else None
             }
-        })
+        }
         
         return user_data
     except HTTPException:
@@ -130,7 +150,6 @@ async def get_student_by_id(
 async def create_student(
     user_data: UserCreate,
     specialty_id: Optional[str] = Query(None, description="Specialty ID for the student"),
-    level_id: Optional[str] = Query(None, description="Level ID for the student"),
     group_id: Optional[str] = Query(None, description="Group ID for the student"),
     prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_admin)
@@ -169,16 +188,6 @@ async def create_student(
                     detail="Specialty not found"
                 )
         
-        # Validate level if provided
-        level = None
-        if level_id:
-            level = await prisma.level.find_unique(where={"id": level_id})
-            if not level:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Level not found"
-                )
-        
         # Validate group if provided
         group = None
         if group_id:
@@ -202,17 +211,24 @@ async def create_student(
             }
         )
         
-        # Create student record
-        student_data = {
-            "userId": new_user.id
-        }
+        # Create student record - both groupId and specialtyId are required according to schema
+        if not specialty_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Specialty ID is required for student creation"
+            )
         
-        if specialty_id:
-            student_data["specialtyId"] = specialty_id
-        if level_id:
-            student_data["levelId"] = level_id
-        if group_id:
-            student_data["groupId"] = group_id
+        if not group_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Group ID is required for student creation"
+            )
+            
+        student_data = {
+            "userId": new_user.id,
+            "specialtyId": specialty_id,
+            "groupId": group_id
+        }
             
         await prisma.student.create(data=student_data)
         
@@ -227,20 +243,34 @@ async def create_student(
 async def update_student(
     student_id: str,
     specialty_id: Optional[str] = Query(None, description="New specialty ID"),
-    level_id: Optional[str] = Query(None, description="New level ID"),
     group_id: Optional[str] = Query(None, description="New group ID"),
     prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_admin)
 ):
     """Update student information (Admin only)"""
     try:
-        # Check if student exists
+        print(f"=== UPDATE STUDENT DEBUG ===")
+        print(f"Received student_id: {student_id}")
+        
+        # Find student record by student.id (not user.id)
         student = await prisma.student.find_unique(where={"id": student_id})
+        
         if not student:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Student not found"
-            )
+            print(f"No student found with student.id: {student_id}")
+            
+            # Maybe they sent user.id instead of student.id - try to find by userId
+            print("Trying to find student by userId...")
+            student = await prisma.student.find_first(where={"userId": student_id})
+            
+            if student:
+                print(f"Found student by userId: {student.id}")
+                student_id = student.id  # Use correct student.id for update
+            else:
+                print("No student found by userId either")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Student not found with ID: {student_id}"
+                )
         
         # Build update data
         update_data = {}
@@ -253,15 +283,6 @@ async def update_student(
                     detail="Specialty not found"
                 )
             update_data["specialtyId"] = specialty_id
-            
-        if level_id:
-            level = await prisma.level.find_unique(where={"id": level_id})
-            if not level:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Level not found"
-                )
-            update_data["levelId"] = level_id
             
         if group_id:
             group = await prisma.group.find_unique(where={"id": group_id})
@@ -294,24 +315,50 @@ async def delete_student(
 ):
     """Delete a student (Admin only)"""
     try:
-        # Find student and get user ID
-        student = await prisma.student.find_unique(where={"id": student_id})
+        print(f"=== DELETE STUDENT DEBUG ===")
+        print(f"Received student_id: {student_id}")
+        
+        # Find student record by student.id (not user.id)
+        student = await prisma.student.find_unique(
+            where={"id": student_id},
+            include={"user": True}
+        )
+        
         if not student:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Student not found"
+            print(f"No student found with student.id: {student_id}")
+            
+            # Maybe they sent user.id instead of student.id - try to find by userId
+            print("Trying to find student by userId...")
+            student = await prisma.student.find_first(
+                where={"userId": student_id},
+                include={"user": True}
             )
+            
+            if student:
+                print(f"Found student by userId: {student.id}")
+                student_id = student.id  # Use correct student.id for deletion
+            else:
+                print("No student found by userId either")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Student not found with ID: {student_id}"
+                )
         
         user_id = student.userId
+        print(f"Will delete student.id: {student.id} and user.id: {user_id}")
         
         # Delete student record first (due to foreign key constraint)
-        await prisma.student.delete(where={"id": student_id})
+        await prisma.student.delete(where={"id": student.id})
+        print(f"Deleted student record: {student.id}")
         
         # Delete associated user
         await prisma.user.delete(where={"id": user_id})
+        print(f"Deleted user record: {user_id}")
         
         return {"message": "Student deleted successfully"}
+        
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Error deleting student: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

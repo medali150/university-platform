@@ -42,6 +42,9 @@ db_manager = DatabaseManager()
 
 async def get_prisma() -> Prisma:
     """Dependency to get prisma client"""
+    if not db_manager._prisma:
+        print("⚠️  Database not connected, attempting to connect...")
+        await db_manager.connect()
     return db_manager.prisma
 
 

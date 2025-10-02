@@ -20,32 +20,25 @@ async def get_admin_statistics(
         users_count = await prisma.user.count()
         students_count = await prisma.student.count()
         teachers_count = await prisma.teacher.count()
-        department_heads_count = await prisma.departmentHead.count()
+        department_heads_count = await prisma.departmenthead.count()
         
         # University structure counts
-        faculties_count = await prisma.faculty.count()
         departments_count = await prisma.department.count()
         specialties_count = await prisma.specialty.count()
         levels_count = await prisma.level.count()
         groups_count = await prisma.group.count()
         
-        # Get role distribution
-        role_distribution = await prisma.user.group_by(
-            by=["role"],
-            _count={"role": True}
-        )
+        # Get role distribution - simplified approach
+        admin_count = await prisma.user.count(where={"role": "ADMIN"})
+        student_users_count = await prisma.user.count(where={"role": "STUDENT"})
+        teacher_users_count = await prisma.user.count(where={"role": "TEACHER"})
+        dept_head_users_count = await prisma.user.count(where={"role": "DEPARTMENT_HEAD"})
         
-        # Get students by department
+        # Get students by department - simplified approach
         students_by_dept = await prisma.student.find_many(
-            select={
+            include={
                 "specialty": {
-                    "select": {
-                        "department": {
-                            "select": {
-                                "name": True
-                            }
-                        }
-                    }
+                    "include": {"department": True}
                 }
             }
         )
@@ -57,15 +50,9 @@ async def get_admin_statistics(
                 dept_name = student.specialty.department.name
                 dept_student_count[dept_name] = dept_student_count.get(dept_name, 0) + 1
         
-        # Get teachers by department
+        # Get teachers by department - simplified approach
         teachers_by_dept = await prisma.teacher.find_many(
-            select={
-                "department": {
-                    "select": {
-                        "name": True
-                    }
-                }
-            }
+            include={"department": True}
         )
         
         # Process teachers by department
@@ -94,15 +81,17 @@ async def get_admin_statistics(
                 "recentRegistrations": recent_users
             },
             "universityStructure": {
-                "faculties": faculties_count,
+                # "faculties": faculties_count,  # removed unsupported
                 "departments": departments_count,
                 "specialties": specialties_count,
                 "levels": levels_count,
                 "groups": groups_count
             },
             "roleDistribution": {
-                item["role"]: item["_count"]["role"] 
-                for item in role_distribution
+                "ADMIN": admin_count,
+                "STUDENT": student_users_count,
+                "TEACHER": teacher_users_count,
+                "DEPARTMENT_HEAD": dept_head_users_count
             },
             "departmentStats": {
                 "studentsByDepartment": dept_student_count,
@@ -111,6 +100,15 @@ async def get_admin_statistics(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats")
+async def get_admin_stats_alias(
+    prisma: Prisma = Depends(get_prisma),
+    current_user = Depends(require_admin)
+):
+    """Alias for statistics endpoint"""
+    return await get_admin_statistics(prisma, current_user)
 
 
 @router.get("/recent-activity")
@@ -138,7 +136,7 @@ async def get_recent_activity(
                 "role": True,
                 "createdAt": True
             },
-            order_by={"createdAt": "desc"},
+            order={"createdAt": "desc"},
             take=limit
         )
         
@@ -189,9 +187,9 @@ async def get_system_health(
                 "description": f"{teachers_without_dept} teachers without assigned department"
             })
         
-        # Check for departments without heads
+        # University structure counts
         departments = await prisma.department.find_many()
-        dept_heads = await prisma.departmentHead.find_many()
+        dept_heads = await prisma.departmenthead.find_many()
         dept_head_dept_ids = {dh.departmentId for dh in dept_heads}
         depts_without_heads = [d for d in departments if d.id not in dept_head_dept_ids]
         
@@ -229,10 +227,10 @@ async def search_users(
         # Build search conditions
         search_conditions = {
             "OR": [
-                {"firstName": {"contains": query, "mode": "insensitive"}},
-                {"lastName": {"contains": query, "mode": "insensitive"}},
-                {"email": {"contains": query, "mode": "insensitive"}},
-                {"login": {"contains": query, "mode": "insensitive"}}
+                {"firstName": {"contains": query}},
+                {"lastName": {"contains": query}},
+                {"email": {"contains": query}},
+                {"login": {"contains": query}}
             ]
         }
         
@@ -251,7 +249,7 @@ async def search_users(
                 "createdAt": True
             },
             take=limit,
-            order_by={"createdAt": "desc"}
+            order={"createdAt": "desc"}
         )
         
         return {
@@ -305,14 +303,12 @@ async def bulk_delete_users(
                 elif user.role == "TEACHER":
                     teacher = await prisma.teacher.find_first(where={"userId": user_id})
                     if teacher:
-                        # Delete teacher-specialty relationships
-                        await prisma.teacherSpecialty.delete_many(where={"teacherId": teacher.id})
                         await prisma.teacher.delete(where={"id": teacher.id})
                 
                 elif user.role == "DEPARTMENT_HEAD":
-                    dept_head = await prisma.departmentHead.find_first(where={"userId": user_id})
+                    dept_head = await prisma.departmenthead.find_first(where={"userId": user_id})
                     if dept_head:
-                        await prisma.departmentHead.delete(where={"id": dept_head.id})
+                        await prisma.departmenthead.delete(where={"id": dept_head.id})
                 
                 # Delete user
                 await prisma.user.delete(where={"id": user_id})

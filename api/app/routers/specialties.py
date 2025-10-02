@@ -11,19 +11,32 @@ router = APIRouter(prefix="/specialties", tags=["Specialties"])
 
 @router.get("/", response_model=List[SpecialtyResponse])
 async def get_specialties(prisma: Prisma = Depends(get_prisma)):
-    """Get all specialties"""
-    specialties = await prisma.specialty.find_many(
+    """Get all specialties mapped from Specialite model."""
+    specialties = await prisma.specialite.find_many(
         include={
-            "department": True,
-            "_count": {
-                "select": {
-                    "levels": True,
-                    "students": True
-                }
-            }
+            "departement": True
         }
     )
-    return specialties
+    # Map fields to API schema shape
+    return [
+        {
+            "id": s.id,
+            "name": s.nom,
+            "departmentId": s.id_departement,
+            "department": (
+                {
+                    "id": s.departement.id,
+                    "name": s.departement.nom,
+                    "createdAt": getattr(s.departement, "createdAt", None),
+                    "updatedAt": getattr(s.departement, "updatedAt", None),
+                }
+                if getattr(s, "departement", None) else None
+            ),
+            "createdAt": getattr(s, "createdAt", None),
+            "updatedAt": getattr(s, "updatedAt", None),
+        }
+        for s in specialties
+    ]
 
 
 @router.post("/", response_model=SpecialtyResponse)
@@ -34,37 +47,38 @@ async def create_specialty(
 ):
     """Create a new specialty (Department Head or Admin only)"""
     # Verify department exists
-    department = await prisma.department.find_unique(where={"id": spec_data.departmentId})
+    department = await prisma.departement.find_unique(where={"id": spec_data.departmentId})
     if not department:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Department not found"
         )
     
-    new_specialty = await prisma.specialty.create(
+    new_specialty = await prisma.specialite.create(
         data={
-            "name": spec_data.name,
-            "departmentId": spec_data.departmentId
+            "nom": spec_data.name,
+            "id_departement": spec_data.departmentId
         },
-        include={"department": True}
+        include={"departement": True}
     )
     
-    return new_specialty
+    return {
+        "id": new_specialty.id,
+        "name": new_specialty.nom,
+        "departmentId": new_specialty.id_departement,
+        "department": {"id": department.id, "name": department.nom},
+        "createdAt": getattr(new_specialty, "createdAt", None),
+        "updatedAt": getattr(new_specialty, "updatedAt", None),
+    }
 
 
 @router.get("/{specialty_id}", response_model=SpecialtyResponse)
 async def get_specialty(specialty_id: str, prisma: Prisma = Depends(get_prisma)):
     """Get specialty by ID"""
-    specialty = await prisma.specialty.find_unique(
+    specialty = await prisma.specialite.find_unique(
         where={"id": specialty_id},
         include={
-            "department": True,
-            "_count": {
-                "select": {
-                    "levels": True,
-                    "students": True
-                }
-            }
+            "departement": True
         }
     )
     if not specialty:
@@ -72,4 +86,14 @@ async def get_specialty(specialty_id: str, prisma: Prisma = Depends(get_prisma))
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Specialty not found"
         )
-    return specialty
+    return {
+        "id": specialty.id,
+        "name": specialty.nom,
+        "departmentId": specialty.id_departement,
+        "department": (
+            {"id": specialty.departement.id, "name": specialty.departement.nom}
+            if getattr(specialty, "departement", None) else None
+        ),
+        "createdAt": getattr(specialty, "createdAt", None),
+        "updatedAt": getattr(specialty, "updatedAt", None),
+    }
