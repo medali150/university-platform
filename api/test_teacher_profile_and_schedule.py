@@ -16,8 +16,8 @@ def test_teacher_profile_and_schedule():
     # Step 1: Login as a teacher
     print("\n📝 Step 1: Login as teacher...")
     login_data = {
-        "email": "teacher@university.com",
-        "password": "password123"
+        "email": "wahid@gmail.com",
+        "password": "daligh15"
     }
     
     try:
