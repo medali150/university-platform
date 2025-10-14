@@ -66,8 +66,8 @@ export interface StudentProfile {
 }
 
 export interface StudentScheduleResponse {
-  schedules: StudentSchedule[];
-  student_info: {
+  schedules?: StudentSchedule[];
+  student_info?: {
     id: string;
     nom: string;
     prenom: string;
@@ -77,10 +77,15 @@ export interface StudentScheduleResponse {
       nom: string;
     };
   };
-  date_range: {
+  date_range?: {
     start: string;
     end: string;
   };
+  // New timetable structure
+  timetable?: any;
+  time_slots?: any[];
+  days?: any[];
+  week_info?: any;
 }
 
 export class StudentAPI {
@@ -138,13 +143,35 @@ export class StudentAPI {
     return response.json();
   }
 
+  /**
+   * Get university timetable (the new table format)
+   */
+  static async getUniversityTimetable(weekOffset: number = 0): Promise<any> {
+    const response = await fetch(`${BASE_URL}/student/timetable?week_offset=${weekOffset}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load university timetable');
+    }
+
+    return data;
+  }
+
   // Legacy method for backward compatibility
   static async getMySchedule(params?: { date_from?: string; date_to?: string }): Promise<StudentSchedule[]> {
     const startDate = params?.date_from;
     const endDate = params?.date_to;
     
     const response = await this.getSchedule(startDate, endDate);
-    return response.schedules;
+    return response.schedules || [];
   }
 }
 

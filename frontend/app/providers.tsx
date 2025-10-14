@@ -13,6 +13,12 @@ const ThemeProvider = dynamic(
   { ssr: false }
 )
 
+// Dynamically import NotificationProvider to prevent hydration issues
+const NotificationProvider = dynamic(
+  () => import('@/components/NotificationProvider'),
+  { ssr: false }
+)
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -32,35 +38,35 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setMounted(true)
   }, [])
 
-  if (!mounted) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-      </QueryClientProvider>
-    )
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="light"
-        enableSystem={false}
-        disableTransitionOnChange
-      >
+      {mounted ? (
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <NotificationProvider>
+              {children}
+              <Toaster 
+                position="bottom-right" 
+                expand={false}
+                richColors
+                closeButton
+              />
+            </NotificationProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      ) : (
         <AuthProvider>
-          {children}
-          <Toaster 
-            position="bottom-right" 
-            expand={false}
-            richColors
-            closeButton
-          />
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
         </AuthProvider>
-      </ThemeProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      )}
+      {mounted && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   )
 }

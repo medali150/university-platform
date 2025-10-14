@@ -15,7 +15,8 @@ import {
   BarChart3,
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Building
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -45,11 +46,11 @@ const teacherNavItems = [
 const departmentHeadNavItems = [
   { href: '/dashboard/department-head', label: 'Dashboard', icon: Home },
   { href: '/dashboard/department-head/timetable', label: 'Timetable', icon: Calendar },
+  { href: '/dashboard/department-head/subjects', label: 'Matières', icon: BookOpen },
   { href: '/dashboard/department-head/auto-scheduling', label: 'Auto Schedule', icon: Settings },
-  { href: '/dashboard/subjects', label: 'Subjects', icon: BookOpen },
+  { href: '/dashboard/department-head/room-occupancy', label: 'Room Occupancy', icon: Building },
   { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
   { href: '/dashboard/absences', label: 'Absences', icon: UserX },
-  { href: '/dashboard/makeups', label: 'Make-up Sessions', icon: BookOpen },
   { href: '/dashboard/department-head/analytics', label: 'Analytics', icon: BarChart3 },
 ]
 

@@ -26,6 +26,7 @@ export default function RegisterPage() {
     role: 'STUDENT',
   })
   const [departments, setDepartments] = useState<{ id: string, name: string }[]>([])
+  const [availableDepartments, setAvailableDepartments] = useState<{ id: string, name?: string, nom?: string }[]>([])
   const [specialties, setSpecialties] = useState<{ id: string, name: string, departmentId: string }[]>([])
   const [levels, setLevels] = useState<{ id: string, name: string, specialtyId: string }[]>([])
   const [loadingMeta, setLoadingMeta] = useState(false)
@@ -70,8 +71,16 @@ export default function RegisterPage() {
       if (!formData.levelId) newErrors.levelId = 'Le niveau est requis'
     }
 
+    if (formData.role === 'TEACHER') {
+      if (!formData.departmentId) newErrors.departmentId = 'Le département est requis'
+    }
+
     if (formData.role === 'DEPARTMENT_HEAD') {
-      if (!formData.departmentId) newErrors.departmentId = 'Le département à diriger est requis'
+      if (availableDepartments.length === 0) {
+        newErrors.departmentId = 'Aucun département disponible pour le poste de chef'
+      } else if (!formData.departmentId) {
+        newErrors.departmentId = 'Le département à diriger est requis'
+      }
     }
 
 
@@ -90,10 +99,10 @@ export default function RegisterPage() {
     try {
       const { confirmPassword, ...registerData } = formData
       
-      // Create the registration payload, including departmentId for department heads
+      // Create the registration payload, including departmentId for teachers and department heads
       const registrationPayload = {
         ...registerData,
-        ...(registerData.role === 'DEPARTMENT_HEAD' && registerData.departmentId && {
+        ...((registerData.role === 'DEPARTMENT_HEAD' || registerData.role === 'TEACHER') && registerData.departmentId && {
           departmentId: registerData.departmentId
         })
       }
@@ -145,6 +154,19 @@ export default function RegisterPage() {
         // Load departments first so the select can render even if others fail
         const deps = await api.getDepartments()
         setDepartments(deps)
+
+        // Load available departments for department heads
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/available-departments`)
+          if (response.ok) {
+            const data = await response.json()
+            setAvailableDepartments(data.available_departments || [])
+          }
+        } catch (e) {
+          console.error('Failed loading available departments', e)
+          // Fallback to all departments if available-departments fails
+          setAvailableDepartments(deps)
+        }
 
         // Load specialties and levels in parallel, but don't block department
         const [specsRes, levsRes] = await Promise.allSettled([
@@ -313,9 +335,15 @@ export default function RegisterPage() {
                         <SelectValue placeholder={loadingMeta ? 'Chargement...' : 'Sélectionnez un département'} />
                       </SelectTrigger>
                       <SelectContent>
-                        {departments.map(d => (
-                          <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                        ))}
+                        {departments.length > 0 ? (
+                          departments.map(d => (
+                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                            Aucun département disponible
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                     {errors.departmentId && (
@@ -336,11 +364,18 @@ export default function RegisterPage() {
                         <SelectValue placeholder={!formData.departmentId ? 'Choisissez un département d’abord' : 'Sélectionnez une spécialité'} />
                       </SelectTrigger>
                       <SelectContent>
-                        {specialties
-                          .filter(s => s.departmentId === formData.departmentId)
-                          .map(s => (
-                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                          ))}
+                        {(() => {
+                          const filtered = specialties.filter(s => s.departmentId === formData.departmentId)
+                          return filtered.length > 0 ? (
+                            filtered.map(s => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))
+                          ) : (
+                            <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                              Aucune spécialité disponible
+                            </div>
+                          )
+                        })()}
                       </SelectContent>
                     </Select>
                     {errors.specialtyId && (
@@ -359,17 +394,55 @@ export default function RegisterPage() {
                         <SelectValue placeholder={!formData.specialtyId ? 'Choisissez une spécialité d’abord' : 'Sélectionnez un niveau'} />
                       </SelectTrigger>
                       <SelectContent>
-                        {levels
-                          .filter(l => l.specialtyId === formData.specialtyId)
-                          .map(l => (
-                            <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                          ))}
+                        {(() => {
+                          const filtered = levels.filter(l => l.specialtyId === formData.specialtyId)
+                          return filtered.length > 0 ? (
+                            filtered.map(l => (
+                              <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                            ))
+                          ) : (
+                            <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                              Aucun niveau disponible
+                            </div>
+                          )
+                        })()}
                       </SelectContent>
                     </Select>
                     {errors.levelId && (
                       <p className="text-sm text-red-600">{errors.levelId}</p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Teacher specific selections */}
+              {formData.role === 'TEACHER' && (
+                <div className="space-y-2">
+                  <Label>Département</Label>
+                  <Select 
+                    value={formData.departmentId}
+                    onValueChange={(val) => {
+                      setFormData(prev => ({ ...prev, departmentId: val }))
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingMeta ? 'Chargement...' : 'Sélectionnez votre département'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.length > 0 ? (
+                        departments.map(d => (
+                          <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                          Aucun département disponible
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {errors.departmentId && (
+                    <p className="text-sm text-red-600">{errors.departmentId}</p>
+                  )}
                 </div>
               )}
 
@@ -387,16 +460,26 @@ export default function RegisterPage() {
                       <SelectValue placeholder={loadingMeta ? 'Chargement...' : 'Sélectionnez le département à diriger'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map(d => (
-                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                      ))}
+                      {availableDepartments.length > 0 ? (
+                        availableDepartments.map(d => (
+                          <SelectItem key={d.id} value={d.id}>{d.name || d.nom}</SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                          Aucun département disponible
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                   {errors.departmentId && (
                     <p className="text-sm text-red-600">{errors.departmentId}</p>
                   )}
                   <p className="text-sm text-gray-500">
-                    Sélectionnez le département dont vous serez le chef
+                    {availableDepartments.length > 0 ? (
+                      'Sélectionnez le département dont vous serez le chef'
+                    ) : (
+                      'Tous les départements ont déjà un chef assigné'
+                    )}
                   </p>
                 </div>
               )}

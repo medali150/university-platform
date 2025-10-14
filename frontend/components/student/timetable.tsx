@@ -18,165 +18,134 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
-import { StudentAPI, StudentSchedule, StudentScheduleResponse } from '@/lib/student-api';
+import TimetableAPI, { TimetableResponse, SessionStatus } from '@/lib/timetable-api';
 
-const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 interface WeekViewProps {
-  scheduleData: StudentScheduleResponse;
+  scheduleData: TimetableResponse;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
-  const { schedules, student_info } = scheduleData;
+  const { timetable, week_start, week_end, total_hours, note } = scheduleData;
   
-  // Group schedules by day
-  const schedulesByDay: { [key: string]: StudentSchedule[] } = {};
-  
-  schedules.forEach(schedule => {
-    const date = new Date(schedule.date);
-    const dayKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-    
-    if (!schedulesByDay[dayKey]) {
-      schedulesByDay[dayKey] = [];
-    }
-    schedulesByDay[dayKey].push(schedule);
-  });
-
-  // Sort schedules within each day by start time
-  Object.keys(schedulesByDay).forEach(day => {
-    schedulesByDay[day].sort((a, b) => 
-      new Date(a.heure_debut).getTime() - new Date(b.heure_debut).getTime()
+  if (!timetable || Object.keys(timetable).length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">Aucun cours programmé pour cette semaine</p>
+          {note && <p className="text-sm text-muted-foreground mt-2">{note}</p>}
+        </CardContent>
+      </Card>
     );
-  });
+  }
 
   const formatTime = (timeString: string) => {
-    return new Date(timeString).toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return timeString; // Already formatted as "08:30"
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long'
-    });
+  const getStatusBadge = (status: SessionStatus) => {
+    return (
+      <Badge variant={TimetableAPI.getStatusVariant(status)}>
+        {TimetableAPI.getStatusLabel(status)}
+      </Badge>
+    );
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PLANNED':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700">Programmé</Badge>;
-      case 'CANCELED':
-        return <Badge variant="destructive">Annulé</Badge>;
-      case 'MAKEUP':
-        return <Badge variant="secondary">Rattrapage</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  // Count total courses
+  let totalCourses = 0;
+  Object.values(timetable).forEach((sessions) => {
+    totalCourses += sessions.length;
+  });
 
-  const getAbsenceBadge = (absence: StudentSchedule['absence']) => {
-    if (!absence || !absence.is_absent) return null;
-    
-    switch (absence.status) {
-      case 'PENDING':
-        return <Badge variant="outline" className="bg-orange-50 text-orange-700">Absence en attente</Badge>;
-      case 'JUSTIFIED':
-        return <Badge variant="outline" className="bg-green-50 text-green-700">Absence justifiée</Badge>;
-      case 'REFUSED':
-        return <Badge variant="destructive">Absence refusée</Badge>;
-      default:
-        return <Badge variant="destructive">Absent</Badge>;
-    }
-  };
-
-  // Get sorted days for the week
-  const sortedDays = Object.keys(schedulesByDay).sort();
+  // Get unique days from timetable
+  const daysWithCourses = Object.keys(timetable).sort((a, b) => {
+    const dayOrder = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    return dayOrder.indexOf(a) - dayOrder.indexOf(b);
+  });
 
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold">
-          Emploi du temps - {student_info.prenom} {student_info.nom}
-        </h2>
+        <h2 className="text-2xl font-bold">Mon Emploi du Temps</h2>
         <p className="text-muted-foreground">
-          Groupe: {student_info.groupe.nom}
+          Semaine du {week_start} au {week_end}
         </p>
+        {total_hours && (
+          <p className="text-sm text-muted-foreground">
+            Total: {total_hours}
+          </p>
+        )}
+        {note && (
+          <p className="text-sm text-blue-600 mt-2">{note}</p>
+        )}
       </div>
 
-      {sortedDays.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Aucun cours programmé pour cette période</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {sortedDays.map(day => (
+      <div className="space-y-4">
+        {daysWithCourses.map((day) => {
+          const sessions = timetable[day];
+          return (
             <Card key={day}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  {formatDate(day)}
+                  {day}
                 </CardTitle>
                 <CardDescription>
-                  {schedulesByDay[day].length} cours programmés
+                  {sessions.length} cours programmé{sessions.length > 1 ? 's' : ''}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {schedulesByDay[day].map(schedule => (
-                    <Card key={schedule.id} className="border-l-4 border-l-primary">
+                  {sessions.map((session) => (
+                    <Card key={session.id} className="border-l-4 border-l-primary">
                       <CardContent className="p-4">
                         <div className="flex justify-between items-start gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <BookOpen className="h-4 w-4 text-primary" />
                               <h3 className="font-semibold text-lg">
-                                {schedule.matiere.nom}
+                                {session.matiere.nom}
                               </h3>
-                              {getStatusBadge(schedule.status)}
-                              {getAbsenceBadge(schedule.absence)}
+                              {getStatusBadge(session.status)}
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
                                 <span>
-                                  {formatTime(schedule.heure_debut)} - {formatTime(schedule.heure_fin)}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                <span>
-                                  Prof. {schedule.enseignant.prenom} {schedule.enseignant.nom}
+                                  {formatTime(session.start_time)} - {formatTime(session.end_time)}
                                 </span>
                               </div>
                               
                               <div className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3" />
                                 <span>
-                                  Salle {schedule.salle.code}
+                                  Salle {session.salle.code}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                <span>
+                                  {session.enseignant.prenom} {session.enseignant.nom}
                                 </span>
                               </div>
                             </div>
 
-                            {schedule.absence?.motif && (
-                              <div className="mt-2 p-2 bg-orange-50 rounded text-sm">
-                                <strong>Motif d'absence:</strong> {schedule.absence.motif}
-                              </div>
-                            )}
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              Groupe: {session.groupe.nom} - {session.groupe.niveau}
+                            </div>
                           </div>
                           
                           <div className="flex flex-col items-end gap-1">
-                            {schedule.absence?.is_absent ? (
+                            {session.status === SessionStatus.COMPLETED ? (
+                              <CheckCircle className="h-5 w-5 text-green-500" />
+                            ) : session.status === SessionStatus.CANCELED ? (
                               <XCircle className="h-5 w-5 text-red-500" />
                             ) : (
-                              <CheckCircle className="h-5 w-5 text-green-500" />
+                              <Clock className="h-5 w-5 text-blue-500" />
                             )}
                           </div>
                         </div>
@@ -186,37 +155,47 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
+
+      {/* Statistics */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{totalCourses}</div>
+              <div className="text-sm text-muted-foreground">Cours cette semaine</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-600">{daysWithCourses.length}</div>
+              <div className="text-sm text-muted-foreground">Jours de cours</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-purple-600">{total_hours}</div>
+              <div className="text-sm text-muted-foreground">Heures totales</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
 export default function StudentTimetablePage() {
-  const [scheduleData, setScheduleData] = useState<StudentScheduleResponse | null>(null);
+  const [scheduleData, setScheduleData] = useState<TimetableResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
-    const today = new Date();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - today.getDay() + 1); // Get Monday of current week
-    return monday;
+  const [currentWeekStart, setCurrentWeekStart] = useState<string>(() => {
+    return TimetableAPI.getWeekStart(new Date());
   });
 
-  const loadSchedule = async (startDate: Date) => {
+  const loadSchedule = async (weekStart: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6); // Get Sunday of the week
-
-      const data = await StudentAPI.getSchedule(
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0]
-      );
-
+      const data = await TimetableAPI.getStudentWeeklySchedule(weekStart);
       setScheduleData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load schedule');
@@ -230,23 +209,22 @@ export default function StudentTimetablePage() {
   }, [currentWeekStart]);
 
   const navigateWeek = (direction: 'prev' | 'next') => {
-    const newWeekStart = new Date(currentWeekStart);
-    newWeekStart.setDate(currentWeekStart.getDate() + (direction === 'next' ? 7 : -7));
-    setCurrentWeekStart(newWeekStart);
+    if (direction === 'next') {
+      const nextDate = new Date(currentWeekStart);
+      nextDate.setDate(nextDate.getDate() + 7);
+      setCurrentWeekStart(TimetableAPI.getWeekStart(nextDate));
+    } else {
+      setCurrentWeekStart(TimetableAPI.getPreviousWeekStart(currentWeekStart));
+    }
   };
 
   const goToCurrentWeek = () => {
-    const today = new Date();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - today.getDay() + 1);
-    setCurrentWeekStart(monday);
+    setCurrentWeekStart(TimetableAPI.getWeekStart(new Date()));
   };
 
-  const formatWeekRange = (startDate: Date) => {
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
-    
-    return `${startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} - ${endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const formatWeekRange = () => {
+    if (!scheduleData) return '';
+    return `${scheduleData.week_start} au ${scheduleData.week_end}`;
   };
 
   if (loading && !scheduleData) {
@@ -274,7 +252,7 @@ export default function StudentTimetablePage() {
         <div>
           <h1 className="text-3xl font-bold">Mon Emploi du Temps</h1>
           <p className="text-muted-foreground">
-            Semaine du {formatWeekRange(currentWeekStart)}
+            Semaine du {formatWeekRange()}
           </p>
         </div>
         

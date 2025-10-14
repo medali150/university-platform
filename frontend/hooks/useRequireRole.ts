@@ -13,24 +13,40 @@ export function useRequireRole(requiredRoles: Role | Role[]) {
   const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles]
 
   useEffect(() => {
-    if (loading) return
+    // CRITICAL: Only check auth after loading is complete
+    // This prevents redirect loops during initialization
+    if (loading) {
+      console.log('[useRequireRole] Still loading auth state...')
+      return
+    }
 
-    if (!isAuthenticated) {
+    console.log('[useRequireRole] Auth check:', { 
+      isAuthenticated, 
+      hasUser: !!user,
+      userRole: user?.role,
+      requiredRoles: roles,
+      pathname 
+    })
+
+    if (!isAuthenticated || !user) {
+      console.log('[useRequireRole] NOT AUTHENTICATED - redirecting to login')
       router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
       return
     }
 
-    if (user && !roles.includes(user.role)) {
-      // Redirect to appropriate dashboard
+    if (!roles.includes(user.role)) {
       const userRoute = user.role === 'STUDENT' 
         ? '/dashboard/student'
         : user.role === 'TEACHER'
         ? '/dashboard/teacher'
         : '/dashboard/department-head'
       
+      console.log(`[useRequireRole] WRONG ROLE (${user.role}) - redirecting to ${userRoute}`)
       router.push(userRoute)
       return
     }
+
+    console.log('[useRequireRole] ✅ Access granted')
   }, [user, loading, isAuthenticated, roles, router, pathname])
 
   return {

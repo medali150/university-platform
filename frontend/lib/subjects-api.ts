@@ -73,8 +73,9 @@ export class SubjectsAPI {
   // Create new subject
   static async createSubject(subjectData: {
     name: string
+    coefficient: number
     levelId: string
-    teacherId: string
+    teacherId?: string
   }): Promise<Subject> {
     try {
       return await api.createSubject(subjectData) as unknown as Subject
@@ -89,6 +90,7 @@ export class SubjectsAPI {
     id: string, 
     subjectData: {
       name?: string
+      coefficient?: number
       levelId?: string
       teacherId?: string
     }

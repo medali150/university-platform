@@ -11,6 +11,8 @@ import { BookOpen, Users, GraduationCap, Search, Plus, Edit, Trash2, ChevronLeft
 import { useState, useEffect } from 'react'
 import { SubjectsAPI } from '@/lib/subjects-api'
 import { Subject } from '@/types/api'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
 // Simple toast notification since sonner isn't installed
 const toast = {
@@ -44,6 +46,31 @@ export default function SubjectsPage() {
     byDepartment: [] as { departmentName: string; count: number }[],
     byTeacher: [] as { teacherName: string; count: number }[]
   })
+  
+  // Create subject modal state
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    coefficient: 1.0,
+    levelId: '',
+    teacherId: ''
+  })
+  const [helperData, setHelperData] = useState<{
+    levels: any[]
+    teachers: any[]
+  }>({ levels: [], teachers: [] })
+  const [createLoading, setCreateLoading] = useState(false)
+  
+  // Edit subject modal state
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    coefficient: 1.0,
+    levelId: '',
+    teacherId: ''
+  })
+  const [editLoading, setEditLoading] = useState(false)
 
   // Load subjects data
   const loadSubjects = async (page = 1, search = '', levelId = '') => {
@@ -87,6 +114,98 @@ export default function SubjectsPage() {
     }
   }
 
+  // Load helper data for create form
+  const loadHelperData = async () => {
+    try {
+      const data = await SubjectsAPI.getHelperData()
+      setHelperData(data)
+    } catch (error) {
+      console.error('Error loading helper data:', error)
+      toast.error('Erreur lors du chargement des données')
+    }
+  }
+
+  // Handle create subject
+  const handleCreateSubject = async () => {
+    if (!createForm.name.trim() || !createForm.levelId) {
+      toast.error('Veuillez remplir tous les champs obligatoires')
+      return
+    }
+
+    if (createForm.coefficient <= 0) {
+      toast.error('Le coefficient doit être supérieur à 0')
+      return
+    }
+
+    try {
+      setCreateLoading(true)
+      await SubjectsAPI.createSubject({
+        name: createForm.name.trim(),
+        coefficient: createForm.coefficient,
+        levelId: createForm.levelId,
+        teacherId: createForm.teacherId && createForm.teacherId !== 'none' ? createForm.teacherId : undefined
+      })
+      
+      toast.success('Matière créée avec succès')
+      setCreateModalOpen(false)
+      setCreateForm({ name: '', levelId: '', teacherId: '' })
+      loadSubjects()
+      loadStats()
+    } catch (error) {
+      console.error('Error creating subject:', error)
+      toast.error('Erreur lors de la création de la matière')
+    } finally {
+      setCreateLoading(false)
+    }
+  }
+
+  // Open edit modal
+  const openEditModal = (subject: Subject) => {
+    setEditingSubject(subject)
+    setEditForm({
+      name: subject.name,
+      coefficient: subject.coefficient || 1.0,
+      levelId: subject.levelId || '',
+      teacherId: subject.teacherId || ''
+    })
+    setEditModalOpen(true)
+  }
+
+  // Handle edit subject
+  const handleEditSubject = async () => {
+    if (!editingSubject || !editForm.name.trim() || !editForm.levelId) {
+      toast.error('Veuillez remplir tous les champs obligatoires')
+      return
+    }
+
+    if (editForm.coefficient <= 0) {
+      toast.error('Le coefficient doit être supérieur à 0')
+      return
+    }
+
+    try {
+      setEditLoading(true)
+      await SubjectsAPI.updateSubject(editingSubject.id, {
+        name: editForm.name.trim(),
+        coefficient: editForm.coefficient,
+        levelId: editForm.levelId,
+        teacherId: editForm.teacherId && editForm.teacherId !== 'none' ? editForm.teacherId : undefined
+      })
+      
+      toast.success('Matière modifiée avec succès')
+      setEditModalOpen(false)
+      setEditingSubject(null)
+      setEditForm({ name: '', levelId: '', teacherId: '' })
+      loadSubjects()
+      loadStats()
+    } catch (error) {
+      console.error('Error updating subject:', error)
+      toast.error('Erreur lors de la modification de la matière')
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
   // Delete subject
   const handleDeleteSubject = async (id: string) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette matière ?')) {
@@ -112,15 +231,31 @@ export default function SubjectsPage() {
     if (user && !authLoading) {
       loadSubjects()
       loadStats()
+      loadHelperData()
     }
   }, [user, authLoading])
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!createModalOpen) {
+      setCreateForm({ name: '', coefficient: 1.0, levelId: '', teacherId: '' })
+    }
+  }, [createModalOpen])
+
+  // Reset edit form when modal closes
+  useEffect(() => {
+    if (!editModalOpen) {
+      setEditForm({ name: '', coefficient: 1.0, levelId: '', teacherId: '' })
+      setEditingSubject(null)
+    }
+  }, [editModalOpen])
 
   // Search and filter effects
   useEffect(() => {
     if (!user || authLoading) return
 
     const delayedSearch = setTimeout(() => {
-      loadSubjects(1, searchTerm, selectedLevel)
+      loadSubjects(1, searchTerm, selectedLevel === 'all' ? '' : selectedLevel)
     }, 300)
 
     return () => clearTimeout(delayedSearch)
@@ -152,10 +287,225 @@ export default function SubjectsPage() {
             Gérez les matières académiques de votre département
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouvelle Matière
-        </Button>
+        <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setCreateModalOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvelle Matière
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Créer une nouvelle matière</DialogTitle>
+              <DialogDescription>
+                Ajoutez une nouvelle matière à votre département
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="subject-name">
+                  Nom de la matière <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="subject-name"
+                  placeholder="Ex: Mathématiques, Informatique..."
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="subject-coefficient">
+                  Coefficient <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="subject-coefficient"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  placeholder="1.0"
+                  value={createForm.coefficient}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, coefficient: parseFloat(e.target.value) || 1.0 }))}
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="subject-level">
+                  Niveau/Spécialité <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={createForm.levelId || undefined}
+                  onValueChange={(value) => setCreateForm(prev => ({ ...prev, levelId: value || '' }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez un niveau" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {helperData.levels.map((level) => (
+                      <SelectItem key={level.id} value={level.id}>
+                        {level.name} - {level.specialty?.department?.name || 'Département non spécifié'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="subject-teacher">
+                  Enseignant (optionnel)
+                </Label>
+                <Select
+                  value={createForm.teacherId || 'none'}
+                  onValueChange={(value) => setCreateForm(prev => ({ ...prev, teacherId: value === 'none' ? '' : value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez un enseignant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun enseignant</SelectItem>
+                    {helperData.teachers.map((teacher) => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        {teacher.user?.prenom} {teacher.user?.nom} ({teacher.user?.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCreateModalOpen(false)
+                  setCreateForm({ name: '', coefficient: 1.0, levelId: '', teacherId: '' })
+                }}
+                disabled={createLoading}
+              >
+                Annuler
+              </Button>
+              <Button onClick={handleCreateSubject} disabled={createLoading}>
+                {createLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Création...
+                  </>
+                ) : (
+                  'Créer la matière'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Subject Modal */}
+        {editModalOpen && (
+          <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Modifier la matière</DialogTitle>
+                <DialogDescription>
+                  Modifiez les informations de la matière
+                </DialogDescription>
+              </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-subject-name">
+                  Nom de la matière <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="edit-subject-name"
+                  placeholder="Ex: Mathématiques, Informatique..."
+                  value={editForm.name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="edit-subject-coefficient">
+                  Coefficient <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="edit-subject-coefficient"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  placeholder="1.0"
+                  value={editForm.coefficient}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, coefficient: parseFloat(e.target.value) || 1.0 }))}
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="edit-subject-level">
+                  Niveau/Spécialité <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={editForm.levelId || undefined}
+                  onValueChange={(value) => setEditForm(prev => ({ ...prev, levelId: value || '' }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez un niveau" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {helperData.levels.map((level) => (
+                      <SelectItem key={level.id} value={level.id}>
+                        {level.name} - {level.specialty?.department?.name || 'Département non spécifié'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-subject-teacher">
+                  Enseignant (optionnel)
+                </Label>
+                <Select
+                  value={editForm.teacherId || 'none'}
+                  onValueChange={(value) => setEditForm(prev => ({ ...prev, teacherId: value === 'none' ? '' : value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez un enseignant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun enseignant</SelectItem>
+                    {helperData.teachers.map((teacher) => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        {teacher.user?.prenom} {teacher.user?.nom} ({teacher.user?.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditModalOpen(false)
+                  setEditForm({ name: '', coefficient: 1.0, levelId: '', teacherId: '' })
+                  setEditingSubject(null)
+                }}
+                disabled={editLoading}
+              >
+                Annuler
+              </Button>
+              <Button onClick={handleEditSubject} disabled={editLoading}>
+                {editLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Modification...
+                  </>
+                ) : (
+                  'Modifier la matière'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        )}
       </div>
 
       {/* Error Display */}
@@ -249,10 +599,10 @@ export default function SubjectsPage() {
                   <SelectValue placeholder="Niveau" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tous les niveaux</SelectItem>
-                  {stats.byLevel.map((level) => (
-                    <SelectItem key={level.levelName} value={level.levelName}>
-                      {level.levelName}
+                  <SelectItem value="all">Tous les niveaux</SelectItem>
+                  {helperData.levels.map((level) => (
+                    <SelectItem key={level.id} value={level.id}>
+                      {level.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -303,8 +653,7 @@ export default function SubjectsPage() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation()
-                              // Handle edit
-                              toast.success('Fonction d\'édition à implémenter')
+                              openEditModal(subject)
                             }}
                           >
                             <Edit className="h-4 w-4" />
@@ -375,25 +724,23 @@ export default function SubjectsPage() {
                     <p className="font-medium">{selectedSubjectData.name}</p>
                   </div>
                   <div>
+                    <label className="text-sm font-medium text-muted-foreground">Coefficient</label>
+                    <p className="font-medium">{selectedSubjectData.coefficient || 1.0}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="text-sm font-medium text-muted-foreground">Niveau</label>
                     <p className="font-medium">{selectedSubjectData.level?.name || 'Non spécifié'}</p>
                   </div>
-                </div>
-
-                {selectedSubjectData.level?.specialty && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Spécialité</label>
-                      <p className="font-medium">{selectedSubjectData.level.specialty.name}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Département</label>
-                      <p className="font-medium">
-                        {selectedSubjectData.level.specialty.department?.name || 'Non spécifié'}
-                      </p>
-                    </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Département</label>
+                    <p className="font-medium">
+                      {selectedSubjectData.level?.specialty?.department?.name || 'Non spécifié'}
+                    </p>
                   </div>
-                )}
+                </div>
 
                 {selectedSubjectData.teacher?.user && (
                   <div>
@@ -418,7 +765,7 @@ export default function SubjectsPage() {
                   <Button 
                     className="w-full" 
                     variant="outline"
-                    onClick={() => toast.success('Fonction d\'édition à implémenter')}
+                    onClick={() => selectedSubjectData && openEditModal(selectedSubjectData)}
                   >
                     <Edit className="mr-2 h-4 w-4" />
                     Modifier la Matière

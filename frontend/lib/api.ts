@@ -45,19 +45,27 @@ class ApiClient {
 
   private getToken(): string | null {
     if (typeof window === 'undefined') return null
-    return localStorage.getItem('access_token')
+    // Check both keys for compatibility
+    return localStorage.getItem('authToken') || localStorage.getItem('access_token')
   }
 
   private setToken(token: string): void {
     if (typeof window === 'undefined') return
+    // Set both keys for compatibility
+    localStorage.setItem('authToken', token)
     localStorage.setItem('access_token', token)
   }
 
   private removeToken(): void {
     if (typeof window === 'undefined') return
+    // Remove all token keys
+    localStorage.removeItem('authToken')
     localStorage.removeItem('access_token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('refresh_token')
+    localStorage.removeItem('userInfo')
     localStorage.removeItem('user')
+    localStorage.removeItem('userRole')
   }
 
   private async refreshToken(): Promise<string> {
@@ -197,9 +205,9 @@ class ApiClient {
     role: string
     departmentId?: string
   }): Promise<AuthResponse> {
-    // Build URL with query parameters for department heads
+    // Build URL with query parameters for department heads and teachers
     let url = '/auth/register'
-    if (userData.role === 'DEPARTMENT_HEAD' && userData.departmentId) {
+    if ((userData.role === 'DEPARTMENT_HEAD' || userData.role === 'TEACHER') && userData.departmentId) {
       url += `?department_id=${encodeURIComponent(userData.departmentId)}`
     }
 
@@ -343,37 +351,37 @@ class ApiClient {
         params.append(key, String(value))
       }
     })
-    return this.request<{ subjects: Subject[], total: number, page: number, pageSize: number, totalPages: number }>(`/admin/subjects?${params}`)
+    return this.request<{ subjects: Subject[], total: number, page: number, pageSize: number, totalPages: number }>(`/department-head/subjects/?${params}`)
   }
 
   async getSubject(id: string): Promise<Subject> {
-    return this.request<Subject>(`/admin/subjects/${id}`)
+    return this.request<Subject>(`/department-head/subjects/${id}`)
   }
 
-  async createSubject(subject: { name: string; levelId: string; teacherId: string }): Promise<Subject> {
-    return this.request<Subject>('/admin/subjects', {
+  async createSubject(subject: { name: string; levelId: string; teacherId?: string }): Promise<Subject> {
+    return this.request<Subject>('/department-head/subjects/', {
       method: 'POST',
       body: JSON.stringify(subject),
     })
   }
 
   async updateSubject(id: string, subject: { name?: string; levelId?: string; teacherId?: string }): Promise<Subject> {
-    return this.request<Subject>(`/admin/subjects/${id}`, {
+    return this.request<Subject>(`/department-head/subjects/${id}`, {
       method: 'PUT',
       body: JSON.stringify(subject),
     })
   }
 
   async deleteSubject(id: string): Promise<void> {
-    return this.request<void>(`/admin/subjects/${id}`, {
+    return this.request<void>(`/department-head/subjects/${id}`, {
       method: 'DELETE',
     })
   }
 
   async getSubjectHelperData(): Promise<{ levels: Level[], teachers: any[] }> {
     const [levelsResponse, teachersResponse] = await Promise.all([
-      this.request<{ levels: Level[] }>('/admin/subjects/helpers/levels'),
-      this.request<{ teachers: any[] }>('/admin/subjects/helpers/teachers')
+      this.request<{ levels: Level[] }>('/department-head/subjects/helpers/levels'),
+      this.request<{ teachers: any[] }>('/department-head/subjects/helpers/teachers')
     ])
     return {
       levels: levelsResponse.levels,
@@ -420,8 +428,22 @@ class ApiClient {
     })
   }
 
-  // Absences
-  async getAbsences(query: AbsenceQuery = {}): Promise<PaginatedResponse<Absence>> {
+  // Absences - New absence management system
+  async getAbsences(query: {
+    page?: number;
+    pageSize?: number;
+    studentId?: string;
+    teacherId?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  } = {}): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
     const params = new URLSearchParams()
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -429,28 +451,108 @@ class ApiClient {
       }
     })
     
-    return this.request<PaginatedResponse<Absence>>(`/absences?${params}`)
+    return this.request<{
+      data: any[];
+      total: number;
+      page: number;
+      pageSize: number;
+      totalPages: number;
+    }>(`/absences/?${params.toString()}`)
   }
 
-  async createAbsence(absence: Partial<Absence>): Promise<Absence> {
-    return this.request<Absence>('/absences', {
+  async createAbsence(data: {
+    studentId: string;
+    scheduleId: string;
+    reason: string;
+    status: string;
+  }): Promise<{ message: string; id: string; notification_sent: boolean }> {
+    return this.request<{ message: string; id: string; notification_sent: boolean }>('/absences/', {
       method: 'POST',
-      body: JSON.stringify(absence),
+      body: JSON.stringify(data),
     })
   }
 
-  async updateAbsenceJustification(id: string, justificationUrl: string): Promise<Absence> {
-    return this.request<Absence>(`/absences/${id}/justification`, {
-      method: 'PATCH',
-      body: JSON.stringify({ justificationUrl }),
+  async getStudentAbsences(studentId: string): Promise<{
+    absences: any[];
+    statistics: {
+      total: number;
+      justified: number;
+      unjustified: number;
+      pending: number;
+      absenceRate: number;
+    };
+  }> {
+    return this.request<{
+      absences: any[];
+      statistics: {
+        total: number;
+        justified: number;
+        unjustified: number;
+        pending: number;
+        absenceRate: number;
+      };
+    }>(`/absences/student/${studentId}`)
+  }
+
+  async justifyAbsence(absenceId: string, data: {
+    justificationText: string;
+    supportingDocuments: string[];
+  }): Promise<{ message: string; status: string }> {
+    return this.request<{ message: string; status: string }>(`/absences/${absenceId}/justify`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     })
   }
 
-  async updateAbsenceStatus(id: string, status: string): Promise<Absence> {
-    return this.request<Absence>(`/absences/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
+  async reviewAbsence(absenceId: string, data: {
+    reviewStatus: string;
+    reviewNotes: string;
+  }): Promise<{ message: string; status: string }> {
+    return this.request<{ message: string; status: string }>(`/absences/${absenceId}/review`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     })
+  }
+
+  async deleteAbsence(absenceId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/absences/${absenceId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async getAbsenceStatistics(departmentId?: string, dateFrom?: string, dateTo?: string): Promise<{
+    totalAbsences: number;
+    justifiedAbsences: number;
+    unjustifiedAbsences: number;
+    pendingReview: number;
+    approvedJustifications: number;
+    rejectedJustifications: number;
+    absenceRate: number;
+    studentsWithHighAbsences: Array<{
+      studentId: string;
+      studentName: string;
+      absenceCount: number;
+    }>;
+  }> {
+    const params = new URLSearchParams()
+    if (departmentId) params.append('departmentId', departmentId)
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+
+    return this.request<{
+      totalAbsences: number;
+      justifiedAbsences: number;
+      unjustifiedAbsences: number;
+      pendingReview: number;
+      approvedJustifications: number;
+      rejectedJustifications: number;
+      absenceRate: number;
+      studentsWithHighAbsences: Array<{
+        studentId: string;
+        studentName: string;
+        absenceCount: number;
+      }>;
+    }>(`/absences/statistics?${params.toString()}`)
   }
 
   // Makeups
@@ -680,7 +782,31 @@ class ApiClient {
     })
   }
 
+  // Room Occupancy
+  async getRoomOccupancy(params?: { week_offset?: number; room_type?: string; building?: string }): Promise<any> {
+    const queryParams = new URLSearchParams()
+    
+    if (params?.week_offset !== undefined) {
+      queryParams.append('week_offset', params.week_offset.toString())
+    }
+    if (params?.room_type && params.room_type !== 'all') {
+      queryParams.append('room_type', params.room_type)
+    }
+    if (params?.building && params.building !== 'all') {
+      queryParams.append('building', params.building)
+    }
+    
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : ''
+    return this.request<any>(`/room-occupancy/rooms${queryString}`)
+  }
 
+  async getRoomDetails(roomId: string): Promise<any> {
+    return this.request<any>(`/room-occupancy/rooms/${roomId}/details`)
+  }
+
+  async getRoomOccupancyStatistics(weekOffset: number = 0): Promise<any> {
+    return this.request<any>(`/room-occupancy/statistics?week_offset=${weekOffset}`)
+  }
 
   // Department-specific comprehensive data
   async getDepartmentComprehensiveData(departmentId: string): Promise<any> {
@@ -724,13 +850,85 @@ class ApiClient {
       }
     }
   }
+
+  // Department Head specific dashboard data using timetable endpoints
+  async getDepartmentHeadDashboardData(): Promise<any> {
+    try {
+      const [groups, teachers, subjects, specialities, rooms, schedules] = await Promise.allSettled([
+        this.getTimetableGroups(),
+        this.getTimetableTeachers(),
+        this.getTimetableSubjects(),
+        this.getTimetableSpecialities(),
+        this.getTimetableRooms(),
+        this.getTimetableSchedules()
+      ])
+      
+      console.log('📊 Dashboard data loaded:', {
+        groups: groups.status === 'fulfilled' ? groups.value.length : 0,
+        teachers: teachers.status === 'fulfilled' ? teachers.value.length : 0,
+        subjects: subjects.status === 'fulfilled' ? subjects.value.length : 0,
+        specialities: specialities.status === 'fulfilled' ? specialities.value.length : 0,
+        rooms: rooms.status === 'fulfilled' ? rooms.value.length : 0,
+        schedules: schedules.status === 'fulfilled' ? schedules.value.length : 0
+      })
+      
+      return {
+        groups: groups.status === 'fulfilled' ? groups.value : [],
+        teachers: teachers.status === 'fulfilled' ? teachers.value : [],
+        subjects: subjects.status === 'fulfilled' ? subjects.value : [],
+        specialities: specialities.status === 'fulfilled' ? specialities.value : [],
+        rooms: rooms.status === 'fulfilled' ? rooms.value : [],
+        schedules: schedules.status === 'fulfilled' ? schedules.value : []
+      }
+    } catch (error) {
+      console.error('❌ Error fetching department head dashboard data:', error)
+      throw error
+    }
+  }
+
+  // Notification endpoints
+  async getNotifications(unreadOnly: boolean = false): Promise<any[]> {
+    const params = unreadOnly ? '?unread_only=true' : ''
+    return this.request<any[]>(`/notifications${params}`)
+  }
+
+  async getNotificationStats(): Promise<any> {
+    return this.request<any>('/notifications/stats')
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<any> {
+    return this.request<any>(`/notifications/${notificationId}/read`, {
+      method: 'PATCH'
+    })
+  }
+
+  async markAllNotificationsAsRead(): Promise<any> {
+    return this.request<any>('/notifications/mark-all-read', {
+      method: 'PATCH'
+    })
+  }
+
+  async deleteNotification(notificationId: string): Promise<any> {
+    return this.request<any>(`/notifications/${notificationId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async deleteAllNotifications(): Promise<any> {
+    return this.request<any>('/notifications', {
+      method: 'DELETE'
+    })
+  }
 }
 
 export const api = new ApiClient()
 
 // Helper function to get auth headers
 export function getAuthHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  // Try both token keys for compatibility
+  const token = typeof window !== 'undefined' 
+    ? (localStorage.getItem('authToken') || localStorage.getItem('access_token'))
+    : null;
   
   return {
     'Content-Type': 'application/json',

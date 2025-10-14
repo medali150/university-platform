@@ -20,9 +20,11 @@ enum Role {
 }
 
 enum AbsenceStatus {
-  PENDING
-  JUSTIFIED
-  REFUSED
+  unjustified
+  pending_review
+  justified
+  approved
+  rejected
 }
 
 enum RoomType {
@@ -43,27 +45,30 @@ enum ScheduleStatus {
 //////////////////////////////////////
 
 model Utilisateur {
-  id          String    @id @default(cuid())
-  nom         String    // lastName
-  prenom      String    // firstName  
-  email       String    @unique
-  role        Role
-  mdp_hash    String    // password hash
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  nom       String // lastName
+  prenom    String // firstName  
+  email     String   @unique
+  role      Role
+  mdp_hash  String // password hash
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations avec autres modèles (foreign keys)
-  enseignant_id     String?           @unique
-  etudiant_id       String?           @unique
-  
-  enseignant        Enseignant?       @relation("UtilisateurEnseignant", fields: [enseignant_id], references: [id])
-  etudiant          Etudiant?         @relation("UtilisateurEtudiant", fields: [etudiant_id], references: [id])
-  chefDepartement   ChefDepartement?
-  administrateur    Administrateur?
-  
+  enseignant_id String? @unique
+  etudiant_id   String? @unique
+
+  enseignant      Enseignant?      @relation("UtilisateurEnseignant", fields: [enseignant_id], references: [id])
+  etudiant        Etudiant?        @relation("UtilisateurEtudiant", fields: [etudiant_id], references: [id])
+  chefDepartement ChefDepartement?
+  administrateur  Administrateur?
+
   // Relations messages
-  messagesEnvoyes   Message[]         @relation("UtilisateurMessagesEnvoyes")
-  messagesRecus     Message[]         @relation("UtilisateurMessagesRecus")
+  messagesEnvoyes Message[] @relation("UtilisateurMessagesEnvoyes")
+  messagesRecus   Message[] @relation("UtilisateurMessagesRecus")
+
+  // Relations notifications
+  notifications Notification[] @relation("UserNotifications")
 
   @@index([role])
   @@index([email])
@@ -73,70 +78,70 @@ model Utilisateur {
 }
 
 model Departement {
-  id          String        @id @default(cuid())
-  nom         String        @unique
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id        String   @id @default(cuid())
+  nom       String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  specialites      Specialite[]
-  enseignants      Enseignant[]
-  chefDepartement  ChefDepartement?
+  specialites     Specialite[]
+  enseignants     Enseignant[]
+  chefDepartement ChefDepartement?
 
   @@map("Department")
 }
 
 model Specialite {
-  id            String      @id @default(cuid())
-  nom           String
+  id             String   @id @default(cuid())
+  nom            String
   id_departement String
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  departement   Departement @relation(fields: [id_departement], references: [id], onDelete: Cascade)
-  niveaux       Niveau[]
-  etudiants     Etudiant[]
-  matieres      Matiere[]
+  departement Departement @relation(fields: [id_departement], references: [id], onDelete: Cascade)
+  niveaux     Niveau[]
+  etudiants   Etudiant[]
+  matieres    Matiere[]
 
   @@index([id_departement])
   @@map("Specialty")
 }
 
 model Niveau {
-  id            String      @id @default(cuid())
+  id            String   @id @default(cuid())
   nom           String
   id_specialite String
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  specialite    Specialite  @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
-  groupes       Groupe[]
+  specialite Specialite @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
+  groupes    Groupe[]
 
   @@index([id_specialite])
   @@map("Level")
 }
 
 model Groupe {
-  id         String      @id @default(cuid())
-  nom        String
-  id_niveau  String
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id        String   @id @default(cuid())
+  nom       String
+  id_niveau String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  niveau        Niveau        @relation(fields: [id_niveau], references: [id], onDelete: Cascade)
-  etudiants     Etudiant[]
-  emploiTemps   EmploiTemps[]
+  niveau      Niveau        @relation(fields: [id_niveau], references: [id], onDelete: Cascade)
+  etudiants   Etudiant[]
+  emploiTemps EmploiTemps[]
 
   @@index([id_niveau])
   @@map("Group")
 }
 
 model Salle {
-  id          String        @id @default(cuid())
-  code        String        @unique
-  type        RoomType
-  capacite    Int
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id        String   @id @default(cuid())
+  code      String   @unique
+  type      RoomType
+  capacite  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   emploiTemps EmploiTemps[]
 
@@ -144,21 +149,21 @@ model Salle {
 }
 
 model Enseignant {
-  id              String        @id @default(cuid())
-  nom             String
-  prenom          String  
-  email           String        @unique
-  id_departement  String
-  image_url       String?       // Cloudinary image URL
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String   @id @default(cuid())
+  nom            String
+  prenom         String
+  email          String   @unique
+  id_departement String
+  image_url      String? // Cloudinary image URL
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  departement     Departement   @relation(fields: [id_departement], references: [id], onDelete: Cascade)
-  matieres        Matiere[]
-  emploiTemps     EmploiTemps[]
-  
+  departement Departement   @relation(fields: [id_departement], references: [id], onDelete: Cascade)
+  matieres    Matiere[]
+  emploiTemps EmploiTemps[]
+
   // Reverse relation to Utilisateur
-  utilisateur     Utilisateur?      @relation("UtilisateurEnseignant")
+  utilisateur Utilisateur? @relation("UtilisateurEnseignant")
 
   @@index([id_departement])
   @@index([email])
@@ -166,21 +171,21 @@ model Enseignant {
 }
 
 model Etudiant {
-  id              String      @id @default(cuid())
-  nom             String
-  prenom          String
-  email           String      @unique
-  id_groupe       String
-  id_specialite   String
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id            String   @id @default(cuid())
+  nom           String
+  prenom        String
+  email         String   @unique
+  id_groupe     String
+  id_specialite String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  groupe          Groupe      @relation(fields: [id_groupe], references: [id], onDelete: Cascade)
-  specialite      Specialite  @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
-  absences        Absence[]
-  
+  groupe     Groupe     @relation(fields: [id_groupe], references: [id], onDelete: Cascade)
+  specialite Specialite @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
+  absences   Absence[]
+
   // Reverse relation to Utilisateur
-  utilisateur     Utilisateur?    @relation("UtilisateurEtudiant")
+  utilisateur Utilisateur? @relation("UtilisateurEtudiant")
 
   @@index([id_groupe])
   @@index([id_specialite])
@@ -189,16 +194,17 @@ model Etudiant {
 }
 
 model Matiere {
-  id              String        @id @default(cuid())
-  nom             String
-  id_specialite   String
-  id_enseignant   String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id            String   @id @default(cuid())
+  nom           String
+  coefficient   Float    @default(1.0) // Subject coefficient/weight
+  id_specialite String
+  id_enseignant String? // Make teacher optional
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  specialite      Specialite    @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
-  enseignant      Enseignant    @relation(fields: [id_enseignant], references: [id], onDelete: Cascade)
-  emploiTemps     EmploiTemps[]
+  specialite  Specialite    @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
+  enseignant  Enseignant?   @relation(fields: [id_enseignant], references: [id], onDelete: SetNull) // Make relation optional
+  emploiTemps EmploiTemps[]
 
   @@index([id_specialite])
   @@index([id_enseignant])
@@ -206,7 +212,7 @@ model Matiere {
 }
 
 model EmploiTemps {
-  id            String        @id @default(cuid())
+  id            String         @id @default(cuid())
   date          DateTime
   heure_debut   DateTime
   heure_fin     DateTime
@@ -215,14 +221,14 @@ model EmploiTemps {
   id_groupe     String
   id_enseignant String
   status        ScheduleStatus @default(PLANNED)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  salle         Salle         @relation(fields: [id_salle], references: [id], onDelete: Restrict)
-  matiere       Matiere       @relation(fields: [id_matiere], references: [id], onDelete: Cascade)
-  groupe        Groupe        @relation(fields: [id_groupe], references: [id], onDelete: Cascade)
-  enseignant    Enseignant    @relation(fields: [id_enseignant], references: [id], onDelete: Cascade)
-  absences      Absence[]
+  salle      Salle      @relation(fields: [id_salle], references: [id], onDelete: Restrict)
+  matiere    Matiere    @relation(fields: [id_matiere], references: [id], onDelete: Cascade)
+  groupe     Groupe     @relation(fields: [id_groupe], references: [id], onDelete: Cascade)
+  enseignant Enseignant @relation(fields: [id_enseignant], references: [id], onDelete: Cascade)
+  absences   Absence[]
 
   @@index([date])
   @@index([id_salle])
@@ -232,72 +238,98 @@ model EmploiTemps {
 }
 
 model Absence {
-  id           String        @id @default(cuid())
-  id_etudiant  String
-  id_emploi    String
-  motif        String?
-  statut       AbsenceStatus @default(PENDING)
-  justificationUrl String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                   String        @id @default(cuid())
+  id_etudiant          String
+  id_emploitemps       String
+  motif                String? // reason for absence
+  statut               AbsenceStatus @default(unjustified)
+  justification_text   String? // student's justification text
+  supporting_documents String[]      @default([]) // URLs to supporting documents
+  review_notes         String? // department head review notes
+  reviewed_at          DateTime? // when it was reviewed
+  reviewed_by          String? // who reviewed it (user ID)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  etudiant     Etudiant      @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
-  emploiTemps  EmploiTemps   @relation(fields: [id_emploi], references: [id], onDelete: Cascade)
+  etudiant    Etudiant    @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+  emploitemps EmploiTemps @relation(fields: [id_emploitemps], references: [id], onDelete: Cascade)
 
   @@index([id_etudiant])
-  @@index([id_emploi])
+  @@index([id_emploitemps])
+  @@index([statut])
+  @@index([createdAt])
 }
 
 model Evenement {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   titre       String
   type        String
   date        DateTime
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("Event")
 }
 
 model ChefDepartement {
-  id              String      @id @default(cuid())
-  id_utilisateur  String      @unique
-  id_departement  String      @unique
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id             String   @id @default(cuid())
+  id_utilisateur String   @unique
+  id_departement String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  utilisateur     Utilisateur @relation(fields: [id_utilisateur], references: [id], onDelete: Cascade)
-  departement     Departement @relation(fields: [id_departement], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur @relation(fields: [id_utilisateur], references: [id], onDelete: Cascade)
+  departement Departement @relation(fields: [id_departement], references: [id], onDelete: Cascade)
 
   @@index([id_departement])
   @@map("DepartmentHead")
 }
 
 model Administrateur {
-  id              String      @id @default(cuid())
-  id_utilisateur  String      @unique
-  niveau          String      @default("ADMIN") // SUPER_ADMIN, ADMIN, MODERATOR
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id             String   @id @default(cuid())
+  id_utilisateur String   @unique
+  niveau         String   @default("ADMIN") // SUPER_ADMIN, ADMIN, MODERATOR
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  utilisateur     Utilisateur @relation(fields: [id_utilisateur], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur @relation(fields: [id_utilisateur], references: [id], onDelete: Cascade)
 
   @@index([niveau])
   @@map("Admin")
 }
 
 model Message {
-  id               String      @id @default(cuid())
-  id_expediteur    String
-  id_destinataire  String
-  contenu          String
-  createdAt        DateTime    @default(now())
+  id              String   @id @default(cuid())
+  id_expediteur   String
+  id_destinataire String
+  contenu         String
+  createdAt       DateTime @default(now())
 
-  expediteur       Utilisateur @relation("UtilisateurMessagesEnvoyes", fields: [id_expediteur], references: [id], onDelete: Cascade)
-  destinataire     Utilisateur @relation("UtilisateurMessagesRecus", fields: [id_destinataire], references: [id], onDelete: Cascade)
+  expediteur   Utilisateur @relation("UtilisateurMessagesEnvoyes", fields: [id_expediteur], references: [id], onDelete: Cascade)
+  destinataire Utilisateur @relation("UtilisateurMessagesRecus", fields: [id_destinataire], references: [id], onDelete: Cascade)
 
   @@index([id_expediteur, createdAt])
   @@index([id_destinataire, createdAt])
   @@map("Message")
 }
+
+// Notification System
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  type        String   // SCHEDULE_CREATED, SCHEDULE_UPDATED, SCHEDULE_DELETED, ABSENCE_MARKED
+  title       String
+  message     String
+  relatedId   String?  @map("related_id") // ID of schedule or absence
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user Utilisateur @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+

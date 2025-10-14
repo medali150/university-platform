@@ -29,7 +29,8 @@ class UserResponse(UserBase, BaseResponseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr = Field(..., description="User email address")
+    email: Optional[EmailStr] = Field(None, description="User email address")  
+    login: Optional[str] = Field(None, description="User login (admin panel compatibility)")
     password: str = Field(..., description="User password")
 
 
@@ -38,7 +39,7 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    user: UserResponse  # Include user data
+    user: dict  # Flexible user data for compatibility
 
 
 class TokenPayload(BaseModel):

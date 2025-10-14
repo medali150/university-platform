@@ -3,10 +3,9 @@
 import asyncio
 from app.db.prisma_client import DatabaseManager
 from app.core.security import verify_password, hash_password
-from prisma import Prisma
 
 async def debug_login():
-    print("=== LOGIN DEBUG TOOL ===")
+    print("=== LOGIN DEBUG TOOL - UNIVERSITY VERSION ===")
     
     # Initialize database
     db_manager = DatabaseManager()
@@ -14,42 +13,41 @@ async def debug_login():
     prisma = db_manager.prisma
     
     try:
-        # Check if user exists
-        login_to_check = "boubaked"
-        password_to_check = "faddou"
+        # Check if admin user exists
+        email_to_check = "admin@university.com"
+        password_to_check = "admin123"
         
-        print(f"\n🔍 Searching for user with login: '{login_to_check}'")
+        print(f"\n🔍 Searching for admin user with email: '{email_to_check}'")
         
-        user = await prisma.user.find_unique(where={"login": login_to_check})
+        user = await prisma.utilisateur.find_unique(where={"email": email_to_check})
         
         if not user:
-            print(f"❌ User '{login_to_check}' NOT FOUND in database")
+            print(f"❌ User '{email_to_check}' NOT FOUND in database")
             print("\n📋 Available users:")
-            users = await prisma.user.find_many()
+            users = await prisma.utilisateur.find_many()
             for u in users:
-                print(f"  - Login: {u.login} | Email: {u.email} | Role: {u.role}")
+                print(f"  - Email: {u.email} | Name: {u.prenom} {u.nom} | Role: {u.role}")
         else:
             print(f"✅ User found!")
             print(f"   ID: {user.id}")
-            print(f"   Name: {user.firstName} {user.lastName}")
+            print(f"   Name: {user.prenom} {user.nom}")
             print(f"   Email: {user.email}")
-            print(f"   Login: {user.login}")
             print(f"   Role: {user.role}")
             
             # Test password verification
             print(f"\n🔐 Testing password verification...")
             print(f"   Password to test: '{password_to_check}'")
             
-            if user.passwordHash:
-                password_match = verify_password(password_to_check, user.passwordHash)
-                print(f"   Password Hash: {user.passwordHash[:50]}...")
+            if user.mdp_hash:
+                password_match = verify_password(password_to_check, user.mdp_hash)
+                print(f"   Password Hash: {user.mdp_hash[:50]}...")
                 print(f"   Password matches: {'✅ YES' if password_match else '❌ NO'}")
                 
                 # Test with some common passwords
-                test_passwords = ["admin", "password", "123456", "boubaked", "faddou", "admin123"]
+                test_passwords = ["admin", "password", "123456", "admin123", "university"]
                 print(f"\n🧪 Testing common passwords:")
                 for pwd in test_passwords:
-                    match = verify_password(pwd, user.passwordHash)
+                    match = verify_password(pwd, user.mdp_hash)
                     if match:
                         print(f"   '{pwd}': ✅ MATCH!")
                     else:
@@ -59,10 +57,20 @@ async def debug_login():
         
         # Show all users with their info
         print(f"\n📊 All users summary:")
-        all_users = await prisma.user.find_many()
+        all_users = await prisma.utilisateur.find_many()
         for u in all_users:
-            has_password = "✅" if u.passwordHash else "❌"
-            print(f"   {u.login} ({u.role}) - Password: {has_password}")
+            has_password = "✅" if u.mdp_hash else "❌"
+            print(f"   {u.email} ({u.role}) - Password: {has_password}")
+            
+        # Try direct token creation
+        if user:
+            print(f"\n🎫 Testing token creation...")
+            try:
+                from app.core.jwt import create_access_token
+                token = create_access_token(data={"sub": user.id})
+                print(f"   ✅ Token created: {token[:50]}...")
+            except Exception as e:
+                print(f"   ❌ Token creation failed: {str(e)}")
     
     finally:
         await db_manager.disconnect()

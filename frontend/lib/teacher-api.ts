@@ -69,13 +69,9 @@ export interface TeacherProfile {
   subjects_taught: {
     id: string;
     nom: string;
-    level: {
+    specialty: {
       id: string;
       nom: string;
-      specialty: {
-        id: string;
-        nom: string;
-      };
     };
   }[];
 }
@@ -304,7 +300,19 @@ export class TeacherAPI {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    
+    // Ensure proper date formatting for all schedules
+    if (data.schedules) {
+      data.schedules = data.schedules.map((schedule: any) => ({
+        ...schedule,
+        date: new Date(schedule.date).toISOString().split('T')[0],
+        heure_debut: schedule.heure_debut.substring(0, 5),
+        heure_fin: schedule.heure_fin.substring(0, 5)
+      }));
+    }
+    
+    return data;
   }
 
   /**
@@ -320,7 +328,15 @@ export class TeacherAPI {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    
+    // Ensure proper date formatting
+    return data.map((schedule: any) => ({
+      ...schedule,
+      date: new Date(schedule.date).toISOString().split('T')[0],
+      heure_debut: schedule.heure_debut.substring(0, 5),
+      heure_fin: schedule.heure_fin.substring(0, 5)
+    }));
   }
 
   /**

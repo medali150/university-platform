@@ -16,11 +16,16 @@ import {
   Mail,
   User,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Eye,
+  UserX
 } from 'lucide-react'
 import { TeacherAPI, TeacherGroup, TeacherGroupsResponse } from '@/lib/teacher-api'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function TeacherGroupsPage() {
+  const router = useRouter()
   const [groupsData, setGroupsData] = useState<TeacherGroupsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -198,17 +203,35 @@ export default function TeacherGroupsPage() {
                       </span>
                     </CardDescription>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleGroupExpansion(group.id)}
-                  >
-                    {expandedGroups.has(group.id) ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/dashboard/teacher/groups/${group.id}`)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Voir Étudiants
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/dashboard/teacher/absences?group=${group.id}`)}
+                    >
+                      <UserX className="mr-2 h-4 w-4" />
+                      Absences
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleGroupExpansion(group.id)}
+                    >
+                      {expandedGroups.has(group.id) ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
 

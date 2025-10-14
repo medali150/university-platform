@@ -78,6 +78,7 @@ export interface Room {
 export interface Subject {
   id: string
   name: string
+  coefficient: number
   levelId: string
   teacherId: string
   level?: {

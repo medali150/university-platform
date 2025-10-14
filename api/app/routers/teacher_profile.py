@@ -7,6 +7,10 @@ from app.core.deps import get_current_user, require_teacher
 from app.services.cloudinary_service_mock import CloudinaryService
 from app.schemas.teacher import DepartmentUpdateRequest, TeacherImageUpload, TeacherProfileUpdate
 from app.schemas.absence import TeacherGroupInfo, TeacherGroupDetails, StudentAbsenceInfo, MarkAbsenceRequest, TeacherAbsenceResponse
+from app.services.enhanced_notification_service import (
+    AbsenceNotificationService,
+    send_notification_with_details as send_enhanced_notification
+)
 
 router = APIRouter(prefix="/teacher", tags=["Teacher Profile"])
 
@@ -50,11 +54,7 @@ async def get_teacher_profile(
     subjects = await prisma.matiere.find_many(
         where={"id_enseignant": teacher.id},
         include={
-            "niveau": {
-                "include": {
-                    "specialite": True
-                }
-            }
+            "specialite": True
         }
     )
     
@@ -89,13 +89,9 @@ async def get_teacher_profile(
             {
                 "id": subject.id,
                 "nom": subject.nom,
-                "level": {
-                    "id": subject.niveau.id,
-                    "nom": subject.niveau.nom,
-                    "specialty": {
-                        "id": subject.niveau.specialite.id,
-                        "nom": subject.niveau.specialite.nom
-                    }
+                "specialty": {
+                    "id": subject.specialite.id,
+                    "nom": subject.specialite.nom
                 }
             } for subject in subjects
         ]
@@ -263,14 +259,10 @@ async def get_teacher_subjects(
     subjects = await prisma.matiere.find_many(
         where={"id_enseignant": teacher.id},
         include={
-            "niveau": {
+            "specialite": {
                 "include": {
-                    "specialite": {
-                        "include": {
-                            "departement": True
-                        }
-                    },
-                    "groupes": True
+                    "departement": True,
+                    "niveaux": True
                 }
             }
         }
@@ -280,18 +272,20 @@ async def get_teacher_subjects(
         {
             "id": subject.id,
             "nom": subject.nom,
-            "level": {
-                "id": subject.niveau.id,
-                "nom": subject.niveau.nom,
-                "groups_count": len(subject.niveau.groupes)
-            },
+            "coefficient": subject.coefficient,
             "specialty": {
-                "id": subject.niveau.specialite.id,
-                "nom": subject.niveau.specialite.nom
+                "id": subject.specialite.id,
+                "nom": subject.specialite.nom,
+                "levels": [
+                    {
+                        "id": niveau.id,
+                        "nom": niveau.nom
+                    } for niveau in subject.specialite.niveaux
+                ]
             },
             "department": {
-                "id": subject.niveau.specialite.departement.id,
-                "nom": subject.niveau.specialite.departement.nom
+                "id": subject.specialite.departement.id,
+                "nom": subject.specialite.departement.nom
             }
         } for subject in subjects
     ]
@@ -492,7 +486,7 @@ async def update_teacher_info(
 # ABSENCE MANAGEMENT ENDPOINTS
 # ============================================================================
 
-@router.get("/groups", response_model=List[TeacherGroupInfo])
+@router.get("/groups")
 async def get_teacher_groups(
     prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_teacher)
@@ -516,50 +510,56 @@ async def get_teacher_groups(
             detail="Teacher profile not found"
         )
     
-    # Get all subjects taught by this teacher
-    subjects = await prisma.matiere.find_many(
+    # Get groups through schedule (more reliable approach)
+    schedules = await prisma.emploitemps.find_many(
         where={"id_enseignant": teacher.id},
         include={
-            "niveau": {
+            "groupe": {
                 "include": {
-                    "specialite": {
+                    "niveau": {
                         "include": {
-                            "departement": True
-                        }
-                    },
-                    "groupes": {
-                        "include": {
-                            "_count": {
-                                "select": {
-                                    "etudiants": True
+                            "specialite": {
+                                "include": {
+                                    "departement": True
                                 }
                             }
                         }
-                    }
+                    },
+                    "etudiants": True
                 }
-            }
+            },
+            "matiere": True
         }
     )
     
-    # Extract unique groups from subjects
+    # Extract unique groups
     groups_map = {}
-    for subject in subjects:
-        for group in subject.niveau.groupes:
-            if group.id not in groups_map:
-                groups_map[group.id] = TeacherGroupInfo(
-                    id=group.id,
-                    nom=group.nom,
-                    niveau={
-                        "id": subject.niveau.id,
-                        "nom": subject.niveau.nom
-                    },
-                    specialite={
-                        "id": subject.niveau.specialite.id,
-                        "nom": subject.niveau.specialite.nom,
-                        "departement": subject.niveau.specialite.departement.nom
-                    },
-                    student_count=group._count.etudiants
-                )
+    for schedule in schedules:
+        group = schedule.groupe
+        if group.id not in groups_map:
+            groups_map[group.id] = {
+                "id": group.id,
+                "nom": group.nom,
+                "niveau": {
+                    "id": group.niveau.id,
+                    "nom": group.niveau.nom
+                },
+                "specialite": {
+                    "id": group.niveau.specialite.id,
+                    "nom": group.niveau.specialite.nom,
+                    "departement": group.niveau.specialite.departement.nom
+                },
+                "student_count": len(group.etudiants),
+                "subjects": []
+            }
+        
+        # Add subject if not already added
+        subject_exists = any(s["id"] == schedule.matiere.id for s in groups_map[group.id]["subjects"])
+        if not subject_exists:
+            groups_map[group.id]["subjects"].append({
+                "id": schedule.matiere.id,
+                "nom": schedule.matiere.nom
+            })
     
     return list(groups_map.values())
 
@@ -580,21 +580,15 @@ async def get_group_students(
             detail="No teacher record found for this user"
         )
     
-    # Check if teacher teaches this group
-    teacher_subjects = await prisma.matiere.find_many(
+    # Check if teacher teaches this group by checking through schedules
+    teacher_schedules = await prisma.emploitemps.find_many(
         where={
             "id_enseignant": current_user.enseignant_id,
-            "niveau": {
-                "groupes": {
-                    "some": {
-                        "id": group_id
-                    }
-                }
-            }
+            "id_groupe": group_id
         }
     )
     
-    if not teacher_subjects:
+    if not teacher_schedules:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this group"
@@ -636,7 +630,7 @@ async def get_group_students(
             absence = await prisma.absence.find_first(
                 where={
                     "id_etudiant": student.id,
-                    "id_emploi": schedule_id
+                    "id_emploitemps": schedule_id
                 }
             )
             
@@ -668,6 +662,8 @@ async def mark_student_absence(
     current_user = Depends(require_teacher)
 ):
     """Mark a student as absent or present for a specific schedule"""
+    
+    # Note: AbsenceNotificationService uses static methods
     
     # Verify teacher has access to mark absence for this schedule
     if not current_user.enseignant_id:
@@ -706,7 +702,7 @@ async def mark_student_absence(
     existing_absence = await prisma.absence.find_first(
         where={
             "id_etudiant": absence_request.student_id,
-            "id_emploi": absence_request.schedule_id
+            "id_emploitemps": absence_request.schedule_id
         }
     )
     
@@ -718,9 +714,26 @@ async def mark_student_absence(
                 where={"id": existing_absence.id},
                 data={
                     "motif": absence_request.motif,
-                    "statut": "PENDING"
+                    "statut": "pending_review"
                 }
             )
+            
+            # Send notification to student about the updated absence
+            try:
+                await AbsenceNotificationService.notify_student_absence_marked(
+                    student_email=student.email,
+                    student_name=f"{student.prenom} {student.nom}",
+                    subject_name=schedule.matiere.nom_matiere if schedule.matiere else "Unknown Subject",
+                    teacher_name=f"{current_user.prenom} {current_user.nom}" if current_user.prenom and current_user.nom else "Teacher",
+                    absence_date=schedule.date.strftime("%Y-%m-%d") if schedule.date else "Unknown Date",
+                    absence_time=schedule.heure_debut or "Unknown Time",
+                    absence_reason=absence_request.motif or "Marked absent by teacher",
+                    absence_id=updated_absence.id
+                )
+            except Exception as e:
+                # Log the error but don't fail the absence marking
+                print(f"Failed to send absence notification: {e}")
+            
             return TeacherAbsenceResponse(
                 success=True,
                 message="Student marked as absent (updated)",
@@ -731,11 +744,28 @@ async def mark_student_absence(
             new_absence = await prisma.absence.create(
                 data={
                     "id_etudiant": absence_request.student_id,
-                    "id_emploi": absence_request.schedule_id,
+                    "id_emploitemps": absence_request.schedule_id,
                     "motif": absence_request.motif or "Marked absent by teacher",
-                    "statut": "PENDING"
+                    "statut": "unjustified"
                 }
             )
+            
+            # Send notification to student about the absence
+            try:
+                await AbsenceNotificationService.notify_student_absence_marked(
+                    student_email=student.email,
+                    student_name=f"{student.prenom} {student.nom}",
+                    subject_name=schedule.matiere.nom_matiere if schedule.matiere else "Unknown Subject",
+                    teacher_name=f"{current_user.prenom} {current_user.nom}" if current_user.prenom and current_user.nom else "Teacher",
+                    absence_date=schedule.date.strftime("%Y-%m-%d") if schedule.date else "Unknown Date",
+                    absence_time=schedule.heure_debut or "Unknown Time",
+                    absence_reason=absence_request.motif or "Marked absent by teacher",
+                    absence_id=new_absence.id
+                )
+            except Exception as e:
+                # Log the error but don't fail the absence marking
+                print(f"Failed to send absence notification: {e}")
+            
             return TeacherAbsenceResponse(
                 success=True,
                 message="Student marked as absent",
@@ -830,7 +860,7 @@ async def get_teacher_schedule(
             },
             "salle": True
         },
-        order=[{"date": "asc"}, {"heure_debut": "asc"}]
+
     )
     
     # Format response
@@ -916,7 +946,7 @@ async def get_today_schedule(
             },
             "salle": True
         },
-        order={"heure_debut": "asc"}
+
     )
     
     return [
@@ -964,7 +994,7 @@ async def get_teacher_stats(
     end_of_day = datetime.combine(today, datetime.max.time())
     
     # Count today's classes
-    today_classes = await prisma.emploidutemps.count(
+    today_classes = await prisma.emploitemps.count(
         where={
             "id_enseignant": current_user.enseignant_id,
             "date": {
@@ -1006,7 +1036,7 @@ async def get_teacher_groups_detailed(
         )
     
     # Get all groups the teacher teaches with detailed information
-    groups_data = await prisma.emploidutemps.find_many(
+    groups_data = await prisma.emploitemps.find_many(
         where={
             "id_enseignant": current_user.enseignant_id
         },
@@ -1030,8 +1060,7 @@ async def get_teacher_groups_detailed(
                 }
             },
             "matiere": True
-        },
-        distinct=["id_groupe", "id_matiere"]
+        }
     )
     
     # Group the data by group and subject

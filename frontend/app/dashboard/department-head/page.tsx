@@ -41,65 +41,104 @@ export default function DepartmentHeadDashboard() {
       setLoading(true)
       setError(null)
       
-      // Get user's department (for now using first department as fallback)
-      const departments = await api.getDepartments()
-      const userDepartment = departments[0] // TODO: Get actual user's department from user profile
-      setDepartmentData(userDepartment)
+      console.log('🔄 Loading department head dashboard data...')
       
-      if (!userDepartment) {
-        setError('Département non trouvé')
-        return
+      // Use department-head-specific endpoints
+      const dashboardData = await api.getDepartmentHeadDashboardData()
+      
+      console.log('✅ Dashboard data received:', dashboardData)
+      
+      // Extract department info from specialities
+      if (dashboardData.specialities && dashboardData.specialities.length > 0) {
+        const firstSpec = dashboardData.specialities[0]
+        if (firstSpec.departement) {
+          setDepartmentData({
+            id: firstSpec.departement.id || firstSpec.id_departement,
+            nom: firstSpec.departement.nom,
+            name: firstSpec.departement.nom
+          })
+        }
       }
       
-      // Fetch comprehensive department data
-      const comprehensiveData = await api.getDepartmentComprehensiveData(userDepartment.id)
+      // Set data states
+      setGroups(dashboardData.groups || [])
+      setTeachers(dashboardData.teachers || [])
+      setSubjects(dashboardData.subjects || [])
+      setSpecialties(dashboardData.specialities || [])
+      setRooms(dashboardData.rooms || [])
+      setSchedules(dashboardData.schedules || [])
       
-      // Set all data states
-      setStudents(comprehensiveData.students)
-      setTeachers(comprehensiveData.teachers)
-      setSubjects(comprehensiveData.subjects)
-      setGroups(comprehensiveData.groups)
-      setLevels(comprehensiveData.levels)
-      setSpecialties(comprehensiveData.specialties)
-      setSchedules(comprehensiveData.schedules)
-      setRooms(comprehensiveData.rooms)
-      setDepartmentHeads(comprehensiveData.departmentHeads)
+      // Calculate students from groups
+      const studentCount = (dashboardData.groups || []).reduce((sum: number, group: any) => {
+        return sum + (group._count?.etudiants || 0)
+      }, 0)
+      
+      setStudents(Array(studentCount).fill({})) // Placeholder for student count
+      
+      // Extract levels from groups
+      const uniqueLevels = (dashboardData.groups || []).map((g: any) => g.niveau).filter(Boolean)
+      setLevels(uniqueLevels)
       
       // Generate recent activity from real data
       const activities = []
-      if (comprehensiveData.students.length > 0) {
+      
+      if (dashboardData.groups && dashboardData.groups.length > 0) {
         activities.push({
           id: 1,
-          type: 'students',
-          message: `${comprehensiveData.students.length} étudiants dans le département`,
-          details: `Département: ${userDepartment.name}`,
+          type: 'groups',
+          message: `${dashboardData.groups.length} groupes dans le département`,
+          details: `Classes organisées`,
           time: 'Maintenant'
         })
       }
-      if (comprehensiveData.teachers.length > 0) {
+      
+      if (dashboardData.teachers && dashboardData.teachers.length > 0) {
         activities.push({
           id: 2,
           type: 'teachers',
-          message: `${comprehensiveData.teachers.length} enseignants actifs`,
-          details: `Personnel du département ${userDepartment.name}`,
+          message: `${dashboardData.teachers.length} enseignants actifs`,
+          details: `Personnel du département`,
           time: 'Maintenant'
         })
       }
-      if (comprehensiveData.specialties.length > 0) {
+      
+      if (dashboardData.specialities && dashboardData.specialities.length > 0) {
         activities.push({
           id: 3,
-          type: 'specialties',
-          message: `${comprehensiveData.specialties.length} spécialités disponibles`,
-          details: 'Formations proposées dans le département',
+          type: 'specialities',
+          message: `${dashboardData.specialities.length} spécialités disponibles`,
+          details: `Formations proposées: ${dashboardData.specialities.map((s: any) => s.nom).join(', ')}`,
+          time: 'Maintenant'
+        })
+      }
+      
+      if (dashboardData.subjects && dashboardData.subjects.length > 0) {
+        activities.push({
+          id: 4,
+          type: 'subjects',
+          message: `${dashboardData.subjects.length} matières disponibles`,
+          details: `Cours dispensés dans le département`,
+          time: 'Maintenant'
+        })
+      }
+      
+      if (dashboardData.schedules && dashboardData.schedules.length > 0) {
+        activities.push({
+          id: 5,
+          type: 'schedules',
+          message: `${dashboardData.schedules.length} horaires planifiés`,
+          details: `Emplois du temps actifs`,
           time: 'Maintenant'
         })
       }
       
       setRecentActivity(activities)
       
-    } catch (err) {
-      console.error('Error loading comprehensive data:', err)
-      setError('Erreur lors du chargement des données du département')
+      console.log('✅ Dashboard loaded successfully')
+      
+    } catch (err: any) {
+      console.error('❌ Error loading dashboard data:', err)
+      setError('Erreur lors du chargement des données: ' + (err.message || 'Erreur inconnue'))
     } finally {
       setLoading(false)
     }
@@ -138,7 +177,7 @@ export default function DepartmentHeadDashboard() {
         <Card className="border-red-200 bg-red-50">
           <CardContent className="pt-6">
             <p className="text-red-600">{error}</p>
-            <Button onClick={loadStatistics} className="mt-4" disabled={loading}>
+            <Button onClick={loadComprehensiveData} className="mt-4" disabled={loading}>
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
@@ -167,10 +206,10 @@ export default function DepartmentHeadDashboard() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
           Vue d'ensemble du département
-          {departmentData?.name && <span className="text-lg font-normal text-muted-foreground ml-2">- {departmentData.name}</span>}
+          {departmentData && <span className="text-lg font-normal text-muted-foreground ml-2">- {departmentData.nom || departmentData.name}</span>}
         </h1>
         <p className="text-muted-foreground">
-          Bon retour, {user.prenom}. Voici les données complètes de votre département.
+          Bon retour, Chef. Voici les données complètes de votre département.
         </p>
       </div>
 
@@ -220,20 +259,28 @@ export default function DepartmentHeadDashboard() {
             <CardDescription>Accès rapide aux fonctionnalités principales</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Link href="/dashboard/department-head/timetable">
                 <Button variant="outline" className="w-full justify-start">
                   <Clock className="mr-2 h-4 w-4" />
-                  Gestion des Emplois du Temps
+                  Consulter les Emplois du Temps
+                </Button>
+              </Link>
+              <Link href="/dashboard/department-head/schedule">
+                <Button variant="outline" className="w-full justify-start">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Créer/Modifier les Emplois du Temps
+                </Button>
+              </Link>
+              <Link href="/dashboard/department-head/subjects">
+                <Button variant="outline" className="w-full justify-start">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Gestion des Matières
                 </Button>
               </Link>
               <Button variant="outline" className="w-full justify-start" disabled>
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Gestion des Absences
-              </Button>
-              <Button variant="outline" className="w-full justify-start" disabled>
-                <Settings className="mr-2 h-4 w-4" />
-                Configuration Département
               </Button>
             </div>
           </CardContent>
@@ -478,14 +525,13 @@ export default function DepartmentHeadDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
               {subjects.map((subject, index) => (
                 <div key={subject.id || index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                  <div className="font-medium">{subject.name || subject.nom || 'Matière sans nom'}</div>
-                  <div className="text-sm text-gray-600">{subject.code || 'Code non défini'}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {subject.credits ? `${subject.credits} crédits` : 'Crédits non définis'}
+                  <div className="font-medium">{subject.nom || subject.name || 'Matière sans nom'}</div>
+                  <div className="text-sm text-gray-600">
+                    {subject.specialite?.nom && `Spécialité: ${subject.specialite.nom}`}
                   </div>
-                  {subject.description && (
-                    <div className="text-xs text-gray-600 mt-2">{subject.description}</div>
-                  )}
+                  <div className="text-xs text-gray-500 mt-1">
+                    {subject.enseignant && `Enseignant: ${subject.enseignant.prenom} ${subject.enseignant.nom}`}
+                  </div>
                 </div>
               ))}
               {subjects.length === 0 && (

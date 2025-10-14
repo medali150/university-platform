@@ -237,10 +237,7 @@ export default function TeacherProfilePage() {
                   <h3 className="font-semibold mb-2">{subject.nom}</h3>
                   <div className="space-y-1 text-sm text-gray-600">
                     <p>
-                      <strong>Niveau:</strong> {subject.level.nom}
-                    </p>
-                    <p>
-                      <strong>Spécialité:</strong> {subject.level.specialty.nom}
+                      <strong>Spécialité:</strong> {subject.specialty.nom}
                     </p>
                   </div>
                 </div>

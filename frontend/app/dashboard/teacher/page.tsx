@@ -131,7 +131,7 @@ export default function TeacherDashboard() {
                     </p>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {schedule.heure_debut.substring(0, 5)} - {schedule.heure_fin.substring(0, 5)}
+                    {schedule.heure_debut} - {schedule.heure_fin}
                   </div>
                 </div>
               ))
@@ -163,10 +163,10 @@ export default function TeacherDashboard() {
               <Plus className="mr-2 h-4 w-4" />
               Create Session
             </Button>
-            <Link href="/absences">
+            <Link href="/dashboard/teacher/absences">
               <Button variant="outline" className="w-full justify-start">
                 <UserX className="mr-2 h-4 w-4" />
-                Mark Absence
+                Gérer les Absences
               </Button>
             </Link>
             <Link href="/makeups">

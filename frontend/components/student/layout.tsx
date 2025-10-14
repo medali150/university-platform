@@ -83,7 +83,12 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
   }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userInfo');
+    }
     router.push('/login');
   };
 

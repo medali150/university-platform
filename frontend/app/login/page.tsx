@@ -22,6 +22,14 @@ export default function LoginPage() {
 
   // Redirect if already authenticated
   useEffect(() => {
+    // CRITICAL: Don't redirect while auth is still loading!
+    if (loading) {
+      console.log('[LoginPage] Auth still loading, waiting...')
+      return
+    }
+    
+    console.log('[LoginPage] Auth state:', { isAuthenticated, hasUser: !!user, userRole: user?.role })
+    
     if (isAuthenticated && user) {
       const roleRoute = user.role === 'STUDENT' 
         ? '/dashboard/student'
@@ -31,9 +39,13 @@ export default function LoginPage() {
         ? '/dashboard/department-head'
         : '/dashboard/admin'
       
-      router.push(roleRoute)
+      console.log('[LoginPage] ✅ AUTHENTICATED - redirecting to:', roleRoute)
+      // Use replace to avoid back button issues
+      router.replace(roleRoute)
+    } else {
+      console.log('[LoginPage] Not authenticated, staying on login')
     }
-  }, [isAuthenticated, user, router])
+  }, [isAuthenticated, user, router, loading])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,11 +58,13 @@ export default function LoginPage() {
     }
 
     try {
+      console.log('Attempting login with:', { email: formData.email, password: '***' })
       await login(formData)
-      // Redirect will happen via useEffect
+      // Redirect will happen via useEffect after a short delay
     } catch (error) {
       // Error is already handled in the AuthContext with toast
       console.error('Login error:', error)
+      setError('Identifiants incorrects. Veuillez réessayer.')
     }
   }
 
@@ -64,7 +78,8 @@ export default function LoginPage() {
     if (error) setError('')
   }
 
-  if (isAuthenticated) {
+  // Show loading state while checking auth
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -172,13 +187,15 @@ export default function LoginPage() {
 
             {/* Demo credentials */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Comptes de démonstration :</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Comptes de test :</h3>
               <div className="text-xs text-gray-600 space-y-1">
-                <div><strong>Admin:</strong> admin@university.com / admin123</div>
-                <div><strong>Enseignant:</strong> jean.dupont@university.com / teacher123</div>
-                <div><strong>Étudiant:</strong> marie.martin@student.university.edu / student123</div>
-                <div><strong>Chef Dépt:</strong> pierre.leclerc@university.com / depthead123</div>
+                <div><strong>Enseignant:</strong> teacher1@university.tn / Test123!</div>
+                <div><strong>Étudiant:</strong> student1@university.tn / Test123!</div>
+                <div><strong>Chef Dépt:</strong> chef.dept1@university.tn / Test123!</div>
               </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Mot de passe pour tous les comptes : <strong>Test123!</strong>
+              </p>
             </div>
           </CardContent>
         </Card>

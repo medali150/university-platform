@@ -1,14 +1,21 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from typing import List, Optional
 from prisma import Prisma
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from pydantic import BaseModel
 
 from app.db.prisma_client import get_prisma
 from app.core.deps import require_department_head, get_current_user
 from app.schemas.user import UserResponse
+from app.routers.notifications import create_notification
 
 router = APIRouter(prefix="/department-head/timetable", tags=["Department Head - Timetable Management"])
+
+def create_local_datetime(date_obj, time_obj):
+    """Create a timezone-naive datetime that represents local time"""
+    # Create naive datetime (no timezone info = treated as local time by database)
+    dt = datetime.combine(date_obj, time_obj)
+    return dt
 
 # Pydantic models for timetable management
 class TimeSlot(BaseModel):
@@ -192,20 +199,41 @@ async def get_department_specialities(
     
     specialities = await prisma.specialite.find_many(
         where={"id_departement": department.id},
-        include={
-            "departement": True,
-            "_count": {
-                "select": {
-                    "matieres": True,
-                    "niveaux": True,
-                    "etudiants": True
-                }
-            }
-        },
+        include={"departement": True},
         order=[{"nom": "asc"}]
     )
     
-    return specialities
+    # Add counts manually if needed
+    specialities_with_counts = []
+    for speciality in specialities:
+        # Get counts for this speciality
+        matieres_count = await prisma.matiere.count(
+            where={"id_specialite": speciality.id}
+        )
+        niveaux_count = await prisma.niveau.count(
+            where={"id_specialite": speciality.id}
+        )
+        etudiants_count = await prisma.etudiant.count(
+            where={"id_specialite": speciality.id}
+        )
+        
+        # Convert to dict and add counts
+        speciality_dict = {
+            "id": speciality.id,
+            "nom": speciality.nom,
+            "id_departement": speciality.id_departement,
+            "createdAt": speciality.createdAt,
+            "updatedAt": speciality.updatedAt,
+            "departement": speciality.departement,
+            "_count": {
+                "matieres": matieres_count,
+                "niveaux": niveaux_count,
+                "etudiants": etudiants_count
+            }
+        }
+        specialities_with_counts.append(speciality_dict)
+    
+    return specialities_with_counts
 
 @router.get("/rooms")
 async def get_available_rooms(
@@ -533,14 +561,18 @@ async def create_schedule(
     start_time_obj = datetime.strptime(schedule_data.start_time, "%H:%M").time()
     end_time_obj = datetime.strptime(schedule_data.end_time, "%H:%M").time()
     
-    # Create datetime objects for the schedule
-    start_datetime = datetime.combine(schedule_date, start_time_obj)
-    end_datetime = datetime.combine(schedule_date, end_time_obj)
+    # Create datetime objects for the schedule (timezone-naive = local time)
+    start_datetime = create_local_datetime(schedule_date, start_time_obj)
+    end_datetime = create_local_datetime(schedule_date, end_time_obj)
     
     # Check for conflicts (same room, same time)
+    # Use start of day and end of day for date comparison
+    day_start = create_local_datetime(schedule_date, datetime.min.time())
+    day_end = create_local_datetime(schedule_date, datetime.max.time())
+    
     existing_schedule = await prisma.emploitemps.find_first(
         where={
-            "date": schedule_date,
+            "date": {"gte": day_start, "lte": day_end},
             "id_salle": schedule_data.room_id,
             "OR": [
                 {
@@ -572,28 +604,61 @@ async def create_schedule(
         )
     
     # Create the schedule
-    new_schedule = await prisma.emploitemps.create(
-        data={
-            "date": schedule_date,
-            "heure_debut": start_datetime,
-            "heure_fin": end_datetime,
-            "id_salle": schedule_data.room_id,
-            "id_matiere": schedule_data.subject_id,
-            "id_groupe": schedule_data.group_id,
-            "id_enseignant": schedule_data.teacher_id,
-            "status": "PLANNED"
-        },
-        include={
-            "salle": True,
-            "matiere": True,
-            "groupe": True,
-            "enseignant": {
-                "include": {"utilisateur": True}
+    try:
+        # Debug: Print data before creation
+        print(f"🔍 Creating schedule with:")
+        print(f"   date: {schedule_date} (type: {type(schedule_date)})")
+        print(f"   heure_debut: {start_datetime} (type: {type(start_datetime)})")
+        print(f"   heure_fin: {end_datetime} (type: {type(end_datetime)})")
+        print(f"   id_salle: {schedule_data.room_id}")
+        print(f"   id_matiere: {schedule_data.subject_id}")
+        print(f"   id_groupe: {schedule_data.group_id}")
+        print(f"   id_enseignant: {schedule_data.teacher_id}")
+        
+        new_schedule = await prisma.emploitemps.create(
+            data={
+                "date": start_datetime,  # Use datetime instead of date
+                "heure_debut": start_datetime,
+                "heure_fin": end_datetime,
+                "id_salle": schedule_data.room_id,
+                "id_matiere": schedule_data.subject_id,
+                "id_groupe": schedule_data.group_id,
+                "id_enseignant": schedule_data.teacher_id
+            },
+            include={
+                "salle": True,
+                "matiere": True,
+                "groupe": True,
+                "enseignant": True
             }
-        }
-    )
-    
-    return new_schedule
+        )
+        
+        # Send notification to teacher
+        teacher_user = await prisma.utilisateur.find_first(
+            where={"enseignant_id": schedule_data.teacher_id}
+        )
+        
+        if teacher_user:
+            await create_notification(
+                prisma=prisma,
+                user_id=teacher_user.id,
+                notification_type="SCHEDULE_CREATED",
+                title="Nouvel emploi du temps",
+                message=f"Un nouvel emploi du temps a été créé pour {subject.nom} le {schedule_date.strftime('%d/%m/%Y')} de {start_time_obj.strftime('%H:%M')} à {end_time_obj.strftime('%H:%M')} - Salle {room.code}",
+                related_id=new_schedule.id
+            )
+            print(f"✅ Notification sent to teacher {teacher_user.email}")
+        
+        return new_schedule
+        
+    except Exception as e:
+        print(f"❌ Schedule creation error: {e}")
+        print(f"   Schedule data: {schedule_data}")
+        print(f"   Date: {schedule_date}, Start: {start_datetime}, End: {end_datetime}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create schedule: {str(e)}"
+        )
 
 @router.post("/schedules/bulk")
 async def create_bulk_schedules(
@@ -685,18 +750,28 @@ async def update_schedule(
     # Build update data
     update_data = {}
     
+    # Get the base date for datetime construction
+    base_date = schedule.date
+    
+    # Handle date conversion for datetime objects  
+    if hasattr(base_date, 'date'):
+        base_date = base_date.date()
+    
+    # Update date if provided
     if schedule_update.date:
-        update_data["date"] = datetime.strptime(schedule_update.date, "%Y-%m-%d").date()
+        new_date = datetime.strptime(schedule_update.date, "%Y-%m-%d").date()
+        if new_date != base_date:
+            # Store as datetime at midnight (local time)
+            update_data["date"] = create_local_datetime(new_date, datetime.min.time())
+        base_date = new_date
     
     if schedule_update.start_time:
         start_time_obj = datetime.strptime(schedule_update.start_time, "%H:%M").time()
-        schedule_date = update_data.get("date", schedule.date)
-        update_data["heure_debut"] = datetime.combine(schedule_date, start_time_obj)
+        update_data["heure_debut"] = create_local_datetime(base_date, start_time_obj)
     
     if schedule_update.end_time:
         end_time_obj = datetime.strptime(schedule_update.end_time, "%H:%M").time()
-        schedule_date = update_data.get("date", schedule.date)
-        update_data["heure_fin"] = datetime.combine(schedule_date, end_time_obj)
+        update_data["heure_fin"] = create_local_datetime(base_date, end_time_obj)
     
     if schedule_update.room_id:
         update_data["id_salle"] = schedule_update.room_id
