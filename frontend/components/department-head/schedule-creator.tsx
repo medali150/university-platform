@@ -52,6 +52,15 @@ interface CellSession {
   timeSlot: typeof TIME_SLOTS[0];
 }
 
+interface EditingSession {
+  id: string;
+  matiere_id: string;
+  enseignant_id: string;
+  salle_id: string;
+  day: DayOfWeek;
+  timeSlot: typeof TIME_SLOTS[0];
+}
+
 export default function InteractiveTimetableCreator() {
   const [loading, setLoading] = useState(false);
   const [resources, setResources] = useState<AvailableResources>({
@@ -64,6 +73,7 @@ export default function InteractiveTimetableCreator() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCell, setSelectedCell] = useState<CellSession | null>(null);
+  const [editingSession, setEditingSession] = useState<EditingSession | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(() => {
     return TimetableAPI.getWeekStart(new Date());
   });
@@ -132,6 +142,7 @@ export default function InteractiveTimetableCreator() {
       console.log('Loading schedule for group:', selectedGroup, 'week:', currentWeekStart);
       const schedule = await TimetableAPI.getGroupWeeklySchedule(selectedGroup, currentWeekStart);
       console.log('Schedule loaded successfully:', schedule);
+      console.log('Timetable data:', JSON.stringify(schedule.timetable, null, 2));
       setWeekSchedule(schedule);
     } catch (err) {
       console.error('Error loading schedule:', err);
@@ -150,6 +161,31 @@ export default function InteractiveTimetableCreator() {
   };
 
   const handleCellClick = (day: DayOfWeek, timeSlot: typeof TIME_SLOTS[0]) => {
+    const existingSession = getCellSession(day, timeSlot);
+    
+    if (existingSession) {
+      // Edit existing session
+      setEditingSession({
+        id: existingSession.id,
+        matiere_id: existingSession.matiere.id,
+        enseignant_id: existingSession.enseignant.id,
+        salle_id: existingSession.salle.id,
+        day: day,
+        timeSlot: timeSlot
+      });
+      setSessionForm({
+        matiere_id: existingSession.matiere.id,
+        enseignant_id: existingSession.enseignant.id,
+        salle_id: existingSession.salle.id,
+        recurrence_type: RecurrenceType.WEEKLY,
+        semester_start: sessionForm.semester_start,
+        semester_end: sessionForm.semester_end
+      });
+    } else {
+      // Create new session
+      setEditingSession(null);
+    }
+    
     setSelectedCell({ day, timeSlot });
     setIsDialogOpen(true);
     setError(null);
@@ -210,6 +246,70 @@ export default function InteractiveTimetableCreator() {
     }
   };
 
+  const handleUpdateSession = async () => {
+    if (!editingSession) return;
+
+    if (!sessionForm.matiere_id || !sessionForm.enseignant_id || !sessionForm.salle_id) {
+      setError('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Note: Currently only updating room, can be extended
+      await TimetableAPI.updateSession(editingSession.id, {
+        salle_id: sessionForm.salle_id
+      });
+
+      setSuccess('✅ Session modifiée avec succès!');
+      setIsDialogOpen(false);
+      setEditingSession(null);
+      
+      // Reload schedule
+      await loadWeekSchedule();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la modification');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!editingSession) return;
+
+    if (!confirm('Voulez-vous vraiment supprimer cette session? Cette action est irréversible.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      await TimetableAPI.cancelSession(editingSession.id);
+
+      setSuccess('✅ Session supprimée avec succès!');
+      setIsDialogOpen(false);
+      setEditingSession(null);
+      
+      // Reload schedule
+      await loadWeekSchedule();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (editingSession) {
+      await handleUpdateSession();
+    } else {
+      await handleCreateSession();
+    }
+  };
+
   const navigateWeek = (direction: 'prev' | 'next') => {
     if (direction === 'next') {
       const nextDate = new Date(currentWeekStart);
@@ -236,14 +336,25 @@ export default function InteractiveTimetableCreator() {
   const getCellSession = (day: DayOfWeek, timeSlot: typeof TIME_SLOTS[0]) => {
     if (!weekSchedule?.timetable) return null;
     
-    const dayLabel = TimetableAPI.dayOfWeekToFrench(day);
+    // Convert day to lowercase French as API returns lowercase day names
+    const dayLabel = TimetableAPI.dayOfWeekToFrench(day).toLowerCase();
     const daySessions = weekSchedule.timetable[dayLabel];
     
-    if (!daySessions) return null;
+    if (!daySessions) {
+      console.log(`No sessions for ${dayLabel}`);
+      return null;
+    }
     
-    return daySessions.find(session => 
+    const session = daySessions.find(session => 
       session.start_time === timeSlot.start && session.end_time === timeSlot.end
     );
+    
+    if (!session) {
+      console.log(`No match for ${dayLabel} ${timeSlot.start}-${timeSlot.end}. Available sessions:`, 
+        daySessions.map(s => `${s.start_time}-${s.end_time}`));
+    }
+    
+    return session;
   };
 
   if (!resources) {
@@ -449,11 +560,11 @@ export default function InteractiveTimetableCreator() {
         </AlertDescription>
       </Alert>
 
-      {/* Session Creation Dialog */}
+      {/* Session Creation/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Créer un Cours</DialogTitle>
+            <DialogTitle>{editingSession ? 'Modifier le Cours' : 'Créer un Cours'}</DialogTitle>
               <DialogDescription>
                 {selectedCell && (
                   <>
@@ -470,6 +581,7 @@ export default function InteractiveTimetableCreator() {
               <Select
                 value={sessionForm.matiere_id}
                 onValueChange={(value) => setSessionForm(prev => ({ ...prev, matiere_id: value }))}
+                disabled={!!editingSession}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner" />
@@ -490,6 +602,7 @@ export default function InteractiveTimetableCreator() {
               <Select
                 value={sessionForm.enseignant_id}
                 onValueChange={(value) => setSessionForm(prev => ({ ...prev, enseignant_id: value }))}
+                disabled={!!editingSession}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner" />
@@ -534,63 +647,99 @@ export default function InteractiveTimetableCreator() {
               />
             </div>
 
-            {/* Recurrence */}
-            <div>
-              <Label htmlFor="recurrence">Récurrence *</Label>
-              <Select
-                value={sessionForm.recurrence_type}
-                onValueChange={(value) => setSessionForm(prev => ({ ...prev, recurrence_type: value as RecurrenceType }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={RecurrenceType.WEEKLY}>Chaque Semaine</SelectItem>
-                  <SelectItem value={RecurrenceType.BIWEEKLY}>Toutes les 2 Semaines</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Recurrence - Only show for new sessions */}
+            {!editingSession && (
+              <div>
+                <Label htmlFor="recurrence">Récurrence *</Label>
+                <Select
+                  value={sessionForm.recurrence_type}
+                  onValueChange={(value) => setSessionForm(prev => ({ ...prev, recurrence_type: value as RecurrenceType }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={RecurrenceType.WEEKLY}>Chaque Semaine</SelectItem>
+                    <SelectItem value={RecurrenceType.BIWEEKLY}>Toutes les 2 Semaines</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-            {/* Semester Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="start">Début Semestre</Label>
-                <Input
-                  id="start"
-                  type="date"
-                  value={sessionForm.semester_start}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, semester_start: e.target.value }))}
-                />
+            {/* Semester Dates - Only show for new sessions */}
+            {!editingSession && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="start">Début Semestre</Label>
+                  <Input
+                    id="start"
+                    type="date"
+                    value={sessionForm.semester_start}
+                    onChange={(e) => setSessionForm(prev => ({ ...prev, semester_start: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="end">Fin Semestre</Label>
+                  <Input
+                    id="end"
+                    type="date"
+                    value={sessionForm.semester_end}
+                    onChange={(e) => setSessionForm(prev => ({ ...prev, semester_end: e.target.value }))}
+                  />
+                </div>
               </div>
-              <div>
-                <Label htmlFor="end">Fin Semestre</Label>
-                <Input
-                  id="end"
-                  type="date"
-                  value={sessionForm.semester_end}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, semester_end: e.target.value }))}
-                />
-              </div>
-            </div>
+            )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleCreateSession} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Création...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Créer le Cours
-                </>
+          <div className="flex justify-between gap-2 pt-4">
+            <div>
+              {editingSession && (
+                <Button 
+                  variant="destructive" 
+                  onClick={handleDeleteSession} 
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Suppression...
+                    </>
+                  ) : (
+                    <>
+                      <Trash className="mr-2 h-4 w-4" />
+                      Supprimer
+                    </>
+                  )}
+                </Button>
               )}
-            </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleSubmit} disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {editingSession ? 'Modification...' : 'Création...'}
+                  </>
+                ) : (
+                  <>
+                    {editingSession ? (
+                      <>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Modifier
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Créer le Cours
+                      </>
+                    )}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

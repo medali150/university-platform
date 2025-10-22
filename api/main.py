@@ -9,6 +9,7 @@ from app.routers import levels_crud, subjects_crud, admin_dashboard
 from app.routers import department_head_dashboard, department_head_timetable
 from app.routers import levels_public, absence_management, teacher_profile, simple_absences, timetable_management, absence_notifications, student_profile, debug_absences, room_occupancy, notifications
 from app.routers import timetables_optimized  # Optimized timetable system (replaces old schedules)
+from app.routers import messages  # Messaging system for teacher-student communication
 
 # Create FastAPI app
 app = FastAPI(
@@ -51,6 +52,7 @@ app.include_router(debug_absences.router)
 app.include_router(room_occupancy.router)
 app.include_router(notifications.router)
 app.include_router(timetables_optimized.router)  # NEW: Optimized timetable system
+app.include_router(messages.router)  # NEW: Messaging system
 
 
 @app.get("/")

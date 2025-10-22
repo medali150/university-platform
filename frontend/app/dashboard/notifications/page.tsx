@@ -115,6 +115,10 @@ export default function NotificationsPage() {
         return <Calendar className="h-5 w-5 text-blue-600" />
       case 'SCHEDULE_UPDATED':
         return <Calendar className="h-5 w-5 text-orange-600" />
+      case 'SCHEDULE_DELETED':
+        return <Calendar className="h-5 w-5 text-red-600" />
+      case 'ABSENCE_MARKED':
+        return <AlertCircle className="h-5 w-5 text-yellow-600" />
       case 'ABSENCE_SUBMITTED':
         return <AlertCircle className="h-5 w-5 text-yellow-600" />
       case 'ABSENCE_REVIEWED':

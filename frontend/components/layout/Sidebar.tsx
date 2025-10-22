@@ -45,13 +45,13 @@ const teacherNavItems = [
 
 const departmentHeadNavItems = [
   { href: '/dashboard/department-head', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/department-head/timetable', label: 'Timetable', icon: Calendar },
+  { href: '/dashboard/department-head/timetable', label: 'Emploi du Temps', icon: Calendar },
+  { href: '/dashboard/department-head/classes', label: 'Classes', icon: Users },
   { href: '/dashboard/department-head/subjects', label: 'Matières', icon: BookOpen },
-  { href: '/dashboard/department-head/auto-scheduling', label: 'Auto Schedule', icon: Settings },
-  { href: '/dashboard/department-head/room-occupancy', label: 'Room Occupancy', icon: Building },
+  { href: '/dashboard/department-head/analytics', label: 'Statistiques', icon: BarChart3 },
+  { href: '/dashboard/department-head/room-occupancy', label: 'Salles', icon: Building },
   { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
   { href: '/dashboard/absences', label: 'Absences', icon: UserX },
-  { href: '/dashboard/department-head/analytics', label: 'Analytics', icon: BarChart3 },
 ]
 
 export function Sidebar({ className }: SidebarProps) {

@@ -15,7 +15,7 @@ Date: October 2025
 
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from typing import List, Optional
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from pydantic import BaseModel, Field
 from prisma import Prisma
 
@@ -633,8 +633,7 @@ async def get_available_resources(
             {
                 "id": m.id,
                 "nom": m.nom,
-                "enseignant": f"{m.enseignant.prenom} {m.enseignant.nom}" if m.enseignant else None,
-                "specialite": m.specialite.nom
+                "code": m.code if hasattr(m, 'code') and m.code else m.id[:6].upper()
             }
             for m in matieres
         ],
@@ -650,7 +649,8 @@ async def get_available_resources(
         "enseignants": [
             {
                 "id": e.id,
-                "nom": f"{e.prenom} {e.nom}",
+                "nom": e.nom,
+                "prenom": e.prenom,
                 "email": e.email
             }
             for e in enseignants
@@ -659,8 +659,8 @@ async def get_available_resources(
             {
                 "id": s.id,
                 "code": s.code,
-                "capacite": s.capacite,
-                "type": s.type
+                "type": s.type,
+                "capacite": s.capacite
             }
             for s in salles
         ]

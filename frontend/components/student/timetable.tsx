@@ -22,6 +22,15 @@ import TimetableAPI, { TimetableResponse, SessionStatus } from '@/lib/timetable-
 
 const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
+// Time slots matching the standard university schedule
+const TIME_SLOTS = [
+  { start: '08:30', end: '10:00' },
+  { start: '10:10', end: '11:40' },
+  { start: '11:50', end: '13:20' },
+  { start: '14:30', end: '16:00' },
+  { start: '16:10', end: '17:40' },
+];
+
 interface WeekViewProps {
   scheduleData: TimetableResponse;
 }
@@ -41,28 +50,23 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
     );
   }
 
-  const formatTime = (timeString: string) => {
-    return timeString; // Already formatted as "08:30"
-  };
+  // Helper function to check if a session fits in a time slot
+  const findSessionForSlot = (day: string, timeSlot: { start: string; end: string }) => {
+    const daySessions = timetable[day.toLowerCase()] || timetable[day];
+    if (!daySessions) return null;
 
-  const getStatusBadge = (status: SessionStatus) => {
-    return (
-      <Badge variant={TimetableAPI.getStatusVariant(status)}>
-        {TimetableAPI.getStatusLabel(status)}
-      </Badge>
-    );
+    return daySessions.find((session: any) => {
+      const sessionStart = session.start_time;
+      const sessionEnd = session.end_time;
+      // Match if session starts within this time slot
+      return sessionStart >= timeSlot.start && sessionStart < timeSlot.end;
+    });
   };
 
   // Count total courses
   let totalCourses = 0;
   Object.values(timetable).forEach((sessions) => {
     totalCourses += sessions.length;
-  });
-
-  // Get unique days from timetable
-  const daysWithCourses = Object.keys(timetable).sort((a, b) => {
-    const dayOrder = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    return dayOrder.indexOf(a) - dayOrder.indexOf(b);
   });
 
   return (
@@ -82,82 +86,91 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
         )}
       </div>
 
-      <div className="space-y-4">
-        {daysWithCourses.map((day) => {
-          const sessions = timetable[day];
-          return (
-            <Card key={day}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  {day}
-                </CardTitle>
-                <CardDescription>
-                  {sessions.length} cours programmé{sessions.length > 1 ? 's' : ''}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {sessions.map((session) => (
-                    <Card key={session.id} className="border-l-4 border-l-primary">
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <BookOpen className="h-4 w-4 text-primary" />
-                              <h3 className="font-semibold text-lg">
-                                {session.matiere.nom}
-                              </h3>
-                              {getStatusBadge(session.status)}
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                <span>
-                                  {formatTime(session.start_time)} - {formatTime(session.end_time)}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                <span>
-                                  Salle {session.salle.code}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                <span>
-                                  {session.enseignant.prenom} {session.enseignant.nom}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              Groupe: {session.groupe.nom} - {session.groupe.niveau}
-                            </div>
-                          </div>
-                          
-                          <div className="flex flex-col items-end gap-1">
-                            {session.status === SessionStatus.COMPLETED ? (
-                              <CheckCircle className="h-5 w-5 text-green-500" />
-                            ) : session.status === SessionStatus.CANCELED ? (
-                              <XCircle className="h-5 w-5 text-red-500" />
-                            ) : (
-                              <Clock className="h-5 w-5 text-blue-500" />
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+      {/* Grid Timetable */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[800px]">
+              <thead>
+                <tr>
+                  <th className="border border-gray-300 bg-gray-100 p-3 text-center font-semibold">
+                    Horaire
+                  </th>
+                  {DAYS_OF_WEEK.map((day) => (
+                    <th key={day} className="border border-gray-300 bg-gray-100 p-3 text-center font-semibold">
+                      {day}
+                    </th>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </tr>
+              </thead>
+              <tbody>
+                {TIME_SLOTS.map((slot, index) => (
+                  <tr key={index}>
+                    <td className="border border-gray-300 bg-gray-50 p-3 text-center align-middle font-medium text-sm whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className="font-bold">{slot.start}</span>
+                        <span className="text-xs text-muted-foreground">à</span>
+                        <span className="font-bold">{slot.end}</span>
+                      </div>
+                    </td>
+                    {DAYS_OF_WEEK.map((day) => {
+                      const session = findSessionForSlot(day, slot);
+                      
+                      return (
+                        <td 
+                          key={`${day}-${index}`} 
+                          className={`border border-gray-300 p-2 align-top ${
+                            session ? 'bg-blue-50' : 'bg-white'
+                          }`}
+                        >
+                          {session ? (
+                            <div className="space-y-1">
+                              <div className="font-semibold text-sm text-blue-900 flex items-start gap-1">
+                                <BookOpen className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                <span className="line-clamp-2">{session.matiere.nom}</span>
+                              </div>
+                              
+                              <div className="text-xs text-gray-700 space-y-0.5">
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{session.start_time} - {session.end_time}</span>
+                                </div>
+                                
+                                <div className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  <span className="truncate">
+                                    {session.enseignant.prenom} {session.enseignant.nom}
+                                  </span>
+                                </div>
+                                
+                                <div className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  <span>Salle {session.salle.code}</span>
+                                </div>
+                              </div>
+
+                              {session.status === SessionStatus.PLANNED && (
+                                <Badge variant="default" className="text-xs">
+                                  Programmé
+                                </Badge>
+                              )}
+                              {session.status === SessionStatus.CANCELED && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Annulé
+                                </Badge>
+                              )}
+                            </div>
+                          ) : null}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Statistics */}
       <Card>
@@ -168,7 +181,7 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
               <div className="text-sm text-muted-foreground">Cours cette semaine</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-green-600">{daysWithCourses.length}</div>
+              <div className="text-2xl font-bold text-green-600">{Object.keys(timetable).length}</div>
               <div className="text-sm text-muted-foreground">Jours de cours</div>
             </div>
             <div>

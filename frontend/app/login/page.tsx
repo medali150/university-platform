@@ -185,18 +185,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Demo credentials */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Comptes de test :</h3>
-              <div className="text-xs text-gray-600 space-y-1">
-                <div><strong>Enseignant:</strong> teacher1@university.tn / Test123!</div>
-                <div><strong>Étudiant:</strong> student1@university.tn / Test123!</div>
-                <div><strong>Chef Dépt:</strong> chef.dept1@university.tn / Test123!</div>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Mot de passe pour tous les comptes : <strong>Test123!</strong>
-              </p>
-            </div>
+           
           </CardContent>
         </Card>
       </div>
