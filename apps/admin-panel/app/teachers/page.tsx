@@ -308,7 +308,7 @@ export default function AdminTeachersPage() {
                           <div className="flex items-center">
                             <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
                               <span className="text-purple-600 font-semibold">
-                                {teacher.firstName.charAt(0)}{teacher.lastName.charAt(0)}
+                                {teacher.firstName?.charAt(0) || '?'}{teacher.lastName?.charAt(0) || '?'}
                               </span>
                             </div>
                             <div className="ml-4">

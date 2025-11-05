@@ -70,6 +70,11 @@ model Utilisateur {
   // Relations notifications
   notifications Notification[] @relation("UserNotifications")
 
+  // Relations events
+  eventsCreated    Evenement[]      @relation("EventCreator")
+  eventComments    EventComment[]   @relation("EventComments")
+  eventReactions   EventReaction[]  @relation("EventReactions")
+
   @@index([role])
   @@index([email])
   @@index([enseignant_id])
@@ -113,8 +118,9 @@ model Niveau {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  specialite Specialite @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
+  specialite Specialite  @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
   groupes    Groupe[]
+  etudiants  Etudiant[] // Students in this level
 
   @@index([id_specialite])
   @@map("Level")
@@ -165,6 +171,9 @@ model Enseignant {
   // Reverse relation to Utilisateur
   utilisateur Utilisateur? @relation("UtilisateurEnseignant")
 
+  // Grading system relation
+  notes Note[]
+
   @@index([id_departement])
   @@index([email])
   @@map("Teacher")
@@ -177,18 +186,26 @@ model Etudiant {
   email         String   @unique
   id_groupe     String
   id_specialite String
+  id_niveau     String?  // Optional level/year reference
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   groupe     Groupe     @relation(fields: [id_groupe], references: [id], onDelete: Cascade)
   specialite Specialite @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
+  niveau     Niveau?    @relation(fields: [id_niveau], references: [id], onDelete: SetNull)
   absences   Absence[]
 
   // Reverse relation to Utilisateur
   utilisateur Utilisateur? @relation("UtilisateurEtudiant")
 
+  // Grading system relations
+  notes       Note[]
+  moyennes    Moyenne[]
+  releveNotes ReleveNotes[]
+
   @@index([id_groupe])
   @@index([id_specialite])
+  @@index([id_niveau])
   @@index([email])
   @@map("Student")
 }
@@ -205,6 +222,10 @@ model Matiere {
   specialite  Specialite    @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
   enseignant  Enseignant?   @relation(fields: [id_enseignant], references: [id], onDelete: SetNull) // Make relation optional
   emploiTemps EmploiTemps[]
+
+  // Grading system relations
+  notes    Note[]
+  moyennes Moyenne[]
 
   @@index([id_specialite])
   @@index([id_enseignant])
@@ -258,18 +279,6 @@ model Absence {
   @@index([id_emploitemps])
   @@index([statut])
   @@index([createdAt])
-}
-
-model Evenement {
-  id          String   @id @default(cuid())
-  titre       String
-  type        String
-  date        DateTime
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("Event")
 }
 
 model ChefDepartement {
@@ -333,3 +342,163 @@ model Notification {
   @@map("notifications")
 }
 
+// ============================================================================
+// GRADING SYSTEM - Student Averages and Grade Reports
+// ============================================================================
+
+enum GradeType {
+  EXAM         // Final exam
+  CONTINUOUS   // Continuous assessment (DS - Devoir Surveillé)
+  PRACTICAL    // Practical work (TP - Travaux Pratiques)
+  PROJECT      // Project work
+  ORAL         // Oral exam
+}
+
+enum SemesterType {
+  SEMESTER_1
+  SEMESTER_2
+}
+
+// Individual grades/notes submitted by teachers
+model Note {
+  id             String       @id @default(cuid())
+  valeur         Float        // Grade value (0-20 scale)
+  type           GradeType    // Type of grade
+  coefficient    Float        @default(1.0) // Weight of this grade
+  id_etudiant    String
+  id_matiere     String
+  id_enseignant  String
+  semestre       SemesterType
+  annee_scolaire String       // Academic year (e.g., "2024-2025")
+  date_examen    DateTime?    // When the exam/evaluation took place
+  validee        Boolean      @default(false) // Whether grade is validated
+  observation    String?      // Optional comments
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  etudiant   Etudiant   @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+  matiere    Matiere    @relation(fields: [id_matiere], references: [id], onDelete: Cascade)
+  enseignant Enseignant @relation(fields: [id_enseignant], references: [id], onDelete: Cascade)
+
+  @@index([id_etudiant])
+  @@index([id_matiere])
+  @@index([id_enseignant])
+  @@index([semestre, annee_scolaire])
+  @@map("grades")
+}
+
+// Calculated averages (moyennes) for students
+model Moyenne {
+  id                String        @id @default(cuid())
+  id_etudiant       String
+  id_matiere        String?       // NULL for general average, ID for subject average
+  semestre          SemesterType
+  annee_scolaire    String
+  moyenne_matiere   Float?        // Subject average (if id_matiere is set)
+  moyenne_generale  Float?        // General average (if id_matiere is NULL)
+  rang              Int?          // Student rank in class/department
+  validee           Boolean       @default(false) // Validated by department head
+  validee_par       String?       // Who validated (user ID)
+  date_validation   DateTime?     // When validated
+  observation       String?       // Department head comments
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  etudiant Etudiant @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+  matiere  Matiere? @relation(fields: [id_matiere], references: [id], onDelete: Cascade)
+
+  @@unique([id_etudiant, id_matiere, semestre, annee_scolaire])
+  @@index([id_etudiant])
+  @@index([id_matiere])
+  @@index([semestre, annee_scolaire])
+  @@index([validee])
+  @@map("averages")
+}
+
+// Grade reports (Relevé de Notes) - Generated documents
+model ReleveNotes {
+  id               String        @id @default(cuid())
+  id_etudiant      String
+  semestre         SemesterType
+  annee_scolaire   String
+  moyenne_generale Float         // General average for the semester
+  rang             Int?          // Student rank
+  total_etudiants  Int?          // Total students in class/department
+  appreciation     String?       // Overall appreciation (Très bien, Bien, etc.)
+  pdf_url          String?       // URL to generated PDF
+  genere_par       String?       // Who generated the report (user ID)
+  date_generation  DateTime      @default(now())
+  envoye           Boolean       @default(false) // Whether report was sent
+  date_envoi       DateTime?     // When the report was sent
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  etudiant Etudiant @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+
+  @@unique([id_etudiant, semestre, annee_scolaire])
+  @@index([id_etudiant])
+  @@index([semestre, annee_scolaire])
+  @@index([envoye])
+  @@map("grade_reports")
+}
+
+//////////////////////////////////////
+// EVENTS & NEWS SYSTEM
+//////////////////////////////////////
+
+// Events (Formations, News, Announcements)
+model Evenement {
+  id          String    @id @default(cuid())
+  titre       String    // Event title
+  type        String    // FORMATION, NEWS, ANNOUNCEMENT, EXAM, OTHER
+  description String?   @db.Text // Event description
+  date        DateTime? // Event date/time
+  lieu        String?   // Location
+  id_createur String    // Creator (department head)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  creator   Utilisateur      @relation("EventCreator", fields: [id_createur], references: [id], onDelete: Cascade)
+  comments  EventComment[]
+  reactions EventReaction[]
+
+  @@index([id_createur])
+  @@index([type])
+  @@index([date])
+  @@map("events")
+}
+
+// Event Comments
+model EventComment {
+  id             String   @id @default(cuid())
+  id_evenement   String
+  id_utilisateur String
+  contenu        String   @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  evenement   Evenement   @relation(fields: [id_evenement], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur @relation("EventComments", fields: [id_utilisateur], references: [id], onDelete: Cascade)
+
+  @@index([id_evenement])
+  @@index([id_utilisateur])
+  @@map("event_comments")
+}
+
+// Event Reactions
+model EventReaction {
+  id             String   @id @default(cuid())
+  id_evenement   String
+  id_utilisateur String
+  type           String   // LIKE, LOVE, INTERESTED, GOING, NOT_GOING
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  evenement   Evenement   @relation(fields: [id_evenement], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur @relation("EventReactions", fields: [id_utilisateur], references: [id], onDelete: Cascade)
+
+  @@unique([id_evenement, id_utilisateur]) // One reaction per user per event
+  @@index([id_evenement])
+  @@index([id_utilisateur])
+  @@map("event_reactions")
+}

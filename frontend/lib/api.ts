@@ -296,7 +296,7 @@ class ApiClient {
 
   // Groups
   async getGroups(): Promise<Group[]> {
-    return this.request<Group[]>('/groups')
+    return this.request<Group[]>('/department-head/timetable/groups')
   }
 
   async createGroup(group: Partial<Group>): Promise<Group> {
@@ -919,6 +919,164 @@ class ApiClient {
     return this.request<any>('/notifications', {
       method: 'DELETE'
     })
+  }
+
+  // Student Averages Management (Department Head)
+  async getAveragesDashboard(params: {
+    semestre: string
+    annee_scolaire: string
+    groupe_id?: string
+    specialite_id?: string
+  }): Promise<any> {
+    const queryParams = new URLSearchParams({
+      semestre: params.semestre,
+      annee_scolaire: params.annee_scolaire,
+      ...(params.groupe_id && { groupe_id: params.groupe_id }),
+      ...(params.specialite_id && { specialite_id: params.specialite_id }),
+    })
+    return this.request<any>(`/department-head/averages/dashboard?${queryParams}`)
+  }
+
+  async calculateAverages(params: {
+    semestre: string
+    annee_scolaire: string
+    groupe_id?: string
+    student_id?: string
+  }): Promise<any> {
+    const queryParams = new URLSearchParams({
+      semestre: params.semestre,
+      annee_scolaire: params.annee_scolaire,
+      ...(params.groupe_id && { groupe_id: params.groupe_id }),
+      ...(params.student_id && { student_id: params.student_id }),
+    })
+    return this.request<any>(`/department-head/averages/calculate?${queryParams}`, {
+      method: 'POST'
+    })
+  }
+
+  async getStudentAveragesDetail(studentId: string, params: {
+    semestre: string
+    annee_scolaire: string
+  }): Promise<any> {
+    const queryParams = new URLSearchParams({
+      semestre: params.semestre,
+      annee_scolaire: params.annee_scolaire,
+    })
+    return this.request<any>(`/department-head/averages/student/${studentId}?${queryParams}`)
+  }
+
+  async validateAverages(data: {
+    student_ids: string[]
+    semestre: string
+    annee_scolaire: string
+    observation?: string
+  }): Promise<any> {
+    return this.request<any>('/department-head/averages/validate', {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    })
+  }
+
+  async generateGradeReports(data: {
+    student_ids: string[]
+    semestre: string
+    annee_scolaire: string
+    send_notification: boolean
+    send_email: boolean
+  }): Promise<any> {
+    return this.request<any>('/department-head/averages/generate-reports', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  }
+
+  // Teacher Grades Management
+  async getTeacherSubjects(): Promise<any> {
+    return this.request<any>('/teacher/grades/my-subjects')
+  }
+
+  async getSubjectGroups(subjectId: string): Promise<any> {
+    return this.request<any>(`/teacher/grades/subject/${subjectId}/groups`)
+  }
+
+  async getGroupStudentsForGrading(
+    subjectId: string,
+    groupId: string,
+    params: {
+      semestre: string
+      annee_scolaire: string
+    }
+  ): Promise<any> {
+    const queryParams = new URLSearchParams({
+      semestre: params.semestre,
+      annee_scolaire: params.annee_scolaire
+    })
+    return this.request<any>(
+      `/teacher/grades/subject/${subjectId}/group/${groupId}/students?${queryParams}`
+    )
+  }
+
+  async submitSingleGrade(data: {
+    id_etudiant: string
+    id_matiere: string
+    valeur: number
+    type: string
+    semestre: string
+    annee_scolaire: string
+    date_examen?: string | null
+    observation?: string | null
+  }): Promise<any> {
+    return this.request<any>('/teacher/grades/submit-single', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  }
+
+  async updateGrade(gradeId: string, data: {
+    valeur?: number
+    type?: string
+    date_examen?: string | null
+    observation?: string | null
+  }): Promise<any> {
+    return this.request<any>(`/teacher/grades/grade/${gradeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    })
+  }
+
+  async deleteGrade(gradeId: string): Promise<any> {
+    return this.request<any>(`/teacher/grades/grade/${gradeId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  // Student Grades
+  async getStudentGrades(params: {
+    semestre: string
+    annee_scolaire: string
+  }): Promise<any> {
+    const queryParams = new URLSearchParams({
+      semestre: params.semestre,
+      annee_scolaire: params.annee_scolaire
+    })
+    return this.request<any>(`/student/grades?${queryParams}`)
+  }
+
+  // Department Head Analytics
+  async getAnalyticsOverview(params?: {
+    start_date?: string
+    end_date?: string
+  }): Promise<any> {
+    const queryParams = new URLSearchParams()
+    if (params?.start_date) queryParams.append('start_date', params.start_date)
+    if (params?.end_date) queryParams.append('end_date', params.end_date)
+    const queryString = queryParams.toString()
+    return this.request<any>(`/department-head/analytics/overview${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getRecentActivity(limit?: number): Promise<any> {
+    const queryParams = limit ? `?limit=${limit}` : ''
+    return this.request<any>(`/department-head/analytics/recent-activity${queryParams}`)
   }
 }
 

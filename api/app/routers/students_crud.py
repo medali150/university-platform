@@ -34,7 +34,7 @@ async def get_all_students(
         if specialty_id:
             where_conditions["specialtyId"] = specialty_id
             
-        students = await prisma.student.find_many(
+        students = await prisma.etudiant.find_many(
             where=where_conditions,
             include={
                 "user": True,
@@ -91,7 +91,7 @@ async def get_student_by_id(
 ):
     """Get student by ID (Admin only)"""
     try:
-        student = await prisma.student.find_unique(
+        student = await prisma.etudiant.find_unique(
             where={"id": student_id},
             include={
                 "user": True,
@@ -164,7 +164,7 @@ async def create_student(
             )
         
         # Check if user already exists
-        existing_user = await prisma.user.find_first(
+        existing_user = await prisma.utilisateur.find_first(
             where={
                 "OR": [
                     {"email": user_data.email},
@@ -181,7 +181,7 @@ async def create_student(
         # Validate specialty if provided
         specialty = None
         if specialty_id:
-            specialty = await prisma.specialty.find_unique(where={"id": specialty_id})
+            specialty = await prisma.specialite.find_unique(where={"id": specialty_id})
             if not specialty:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -191,7 +191,7 @@ async def create_student(
         # Validate group if provided
         group = None
         if group_id:
-            group = await prisma.group.find_unique(where={"id": group_id})
+            group = await prisma.groupe.find_unique(where={"id": group_id})
             if not group:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -200,7 +200,7 @@ async def create_student(
         
         # Create user first
         hashed_password = hash_password(user_data.password)
-        new_user = await prisma.user.create(
+        new_user = await prisma.utilisateur.create(
             data={
                 "firstName": user_data.firstName,
                 "lastName": user_data.lastName,
@@ -230,7 +230,7 @@ async def create_student(
             "groupId": group_id
         }
             
-        await prisma.student.create(data=student_data)
+        await prisma.etudiant.create(data=student_data)
         
         return new_user
     except HTTPException:
@@ -253,14 +253,14 @@ async def update_student(
         print(f"Received student_id: {student_id}")
         
         # Find student record by student.id (not user.id)
-        student = await prisma.student.find_unique(where={"id": student_id})
+        student = await prisma.etudiant.find_unique(where={"id": student_id})
         
         if not student:
             print(f"No student found with student.id: {student_id}")
             
             # Maybe they sent user.id instead of student.id - try to find by userId
             print("Trying to find student by userId...")
-            student = await prisma.student.find_first(where={"userId": student_id})
+            student = await prisma.etudiant.find_first(where={"userId": student_id})
             
             if student:
                 print(f"Found student by userId: {student.id}")
@@ -276,7 +276,7 @@ async def update_student(
         update_data = {}
         
         if specialty_id:
-            specialty = await prisma.specialty.find_unique(where={"id": specialty_id})
+            specialty = await prisma.specialite.find_unique(where={"id": specialty_id})
             if not specialty:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -285,7 +285,7 @@ async def update_student(
             update_data["specialtyId"] = specialty_id
             
         if group_id:
-            group = await prisma.group.find_unique(where={"id": group_id})
+            group = await prisma.groupe.find_unique(where={"id": group_id})
             if not group:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -294,7 +294,7 @@ async def update_student(
             update_data["groupId"] = group_id
         
         if update_data:
-            updated_student = await prisma.student.update(
+            updated_student = await prisma.etudiant.update(
                 where={"id": student_id},
                 data=update_data
             )
@@ -319,7 +319,7 @@ async def delete_student(
         print(f"Received student_id: {student_id}")
         
         # Find student record by student.id (not user.id)
-        student = await prisma.student.find_unique(
+        student = await prisma.etudiant.find_unique(
             where={"id": student_id},
             include={"user": True}
         )
@@ -329,7 +329,7 @@ async def delete_student(
             
             # Maybe they sent user.id instead of student.id - try to find by userId
             print("Trying to find student by userId...")
-            student = await prisma.student.find_first(
+            student = await prisma.etudiant.find_first(
                 where={"userId": student_id},
                 include={"user": True}
             )
@@ -348,11 +348,11 @@ async def delete_student(
         print(f"Will delete student.id: {student.id} and user.id: {user_id}")
         
         # Delete student record first (due to foreign key constraint)
-        await prisma.student.delete(where={"id": student.id})
+        await prisma.etudiant.delete(where={"id": student.id})
         print(f"Deleted student record: {student.id}")
         
         # Delete associated user
-        await prisma.user.delete(where={"id": user_id})
+        await prisma.utilisateur.delete(where={"id": user_id})
         print(f"Deleted user record: {user_id}")
         
         return {"message": "Student deleted successfully"}

@@ -360,7 +360,7 @@ export default function AdminDepartmentHeadsPage() {
                           <div className="flex items-center">
                             <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
                               <span className="text-orange-600 font-semibold">
-                                {deptHead.firstName.charAt(0)}{deptHead.lastName.charAt(0)}
+                                {deptHead.firstName?.charAt(0) || '?'}{deptHead.lastName?.charAt(0) || '?'}
                               </span>
                             </div>
                             <div className="ml-4">

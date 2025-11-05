@@ -1,12 +1,14 @@
 """
 Messaging System API Router
 Enables communication between teachers and students
+WITH END-TO-END ENCRYPTION
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from prisma import Prisma
 from app.db.prisma_client import get_prisma
 from app.core.deps import get_current_user
+from app.core.encryption import encrypt_message, decrypt_message
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -76,12 +78,12 @@ def format_user_info(user) -> dict:
 
 
 def format_message_response(message) -> dict:
-    """Format message for API response"""
+    """Format message for API response (with decryption)"""
     return {
         "id": message.id,
         "id_expediteur": message.id_expediteur,
         "id_destinataire": message.id_destinataire,
-        "contenu": message.contenu,
+        "contenu": decrypt_message(message.contenu),  # Decrypt before sending
         "createdAt": message.createdAt.isoformat(),
         "expediteur": format_user_info(message.expediteur),
         "destinataire": format_user_info(message.destinataire)
@@ -125,12 +127,14 @@ async def send_message(
             detail="Students cannot message other students directly"
         )
     
-    # Create message
+    # Create message (with encryption)
+    encrypted_content = encrypt_message(message_data.contenu)
+    
     message = await prisma.message.create(
         data={
             "id_expediteur": current_user.id,
             "id_destinataire": message_data.id_destinataire,
-            "contenu": message_data.contenu
+            "contenu": encrypted_content  # Store encrypted
         },
         include={
             "expediteur": True,
@@ -156,15 +160,17 @@ async def get_conversations(
     # Get all messages involving the current user
     sent_messages = await prisma.message.find_many(
         where={"id_expediteur": current_user.id},
-        include={"destinataire": True},
-        order_by={"createdAt": "desc"}
+        include={"destinataire": True}
     )
     
     received_messages = await prisma.message.find_many(
         where={"id_destinataire": current_user.id},
-        include={"expediteur": True},
-        order_by={"createdAt": "desc"}
+        include={"expediteur": True}
     )
+    
+    # Sort in Python
+    sent_messages.sort(key=lambda m: m.createdAt, reverse=True)
+    received_messages.sort(key=lambda m: m.createdAt, reverse=True)
     
     # Build conversations map
     conversations_map = {}
@@ -210,7 +216,7 @@ async def get_conversations(
             "userId": user_id,
             "user": format_user_info(conv_data["user"]),
             "lastMessage": {
-                "contenu": conv_data["last_message"].contenu,
+                "contenu": decrypt_message(conv_data["last_message"].contenu),  # Decrypt
                 "createdAt": conv_data["last_message"].createdAt.isoformat(),
                 "isSent": conv_data["last_message"].id_expediteur == current_user.id
             },
@@ -263,11 +269,159 @@ async def get_conversation_messages(
         include={
             "expediteur": True,
             "destinataire": True
-        },
-        order_by={"createdAt": "asc"}
+        }
     )
     
+    # Sort in Python (ascending order for chronological chat)
+    messages.sort(key=lambda m: m.createdAt)
+    
     return [format_message_response(msg) for msg in messages]
+
+
+@router.get("/available-contacts", response_model=List[UserInfo])
+async def get_available_contacts(
+    prisma: Prisma = Depends(get_prisma),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get all available contacts for the current user
+    
+    - Students get all their teachers
+    - Teachers get all their students
+    - Department heads get everyone in their department
+    """
+    
+    # TEACHER: Get all students they teach
+    if current_user.role == "TEACHER":
+        teacher = await prisma.enseignant.find_first(
+            where={"email": current_user.email},
+            include={"departement": True}
+        )
+        
+        if not teacher:
+            return []
+        
+        # Strategy 1: Find students through schedules
+        schedules = await prisma.emploitemps.find_many(
+            where={"id_enseignant": teacher.id}
+        )
+        
+        group_ids = list(set([s.id_groupe for s in schedules if s.id_groupe]))
+        
+        # Strategy 2: If no schedules, get ALL students from same department
+        if not group_ids:
+            # Get all students in the same department as the teacher
+            students = await prisma.etudiant.find_many(
+                where={
+                    "specialite": {
+                        "id_departement": teacher.id_departement
+                    }
+                }
+            )
+        else:
+            # Get students from scheduled groups
+            students = await prisma.etudiant.find_many(
+                where={"id_groupe": {"in": group_ids}}
+            )
+        
+        if not students:
+            return []
+        
+        # Sort in Python
+        students.sort(key=lambda s: (s.nom, s.prenom))
+        
+        # Get their user accounts
+        student_emails = [s.email for s in students]
+        users = await prisma.utilisateur.find_many(
+            where={"email": {"in": student_emails}}
+        )
+        
+        # Sort in Python
+        users.sort(key=lambda u: (u.nom, u.prenom))
+        
+        return [format_user_info(user) for user in users]
+    
+    # STUDENT: Get all their teachers
+    elif current_user.role == "STUDENT":
+        student = await prisma.etudiant.find_first(
+            where={"email": current_user.email},
+            include={"groupe": True, "specialite": True}
+        )
+        
+        if not student:
+            return []
+        
+        # Strategy 1: Find teachers through schedules if student has a group
+        teacher_emails = []
+        if student.id_groupe:
+            schedules = await prisma.emploitemps.find_many(
+                where={"id_groupe": student.id_groupe},
+                include={"enseignant": True}
+            )
+            teacher_emails = list(set([s.enseignant.email for s in schedules if s.enseignant]))
+        
+        # Strategy 2: If no schedules or no group, get ALL teachers from same department
+        if not teacher_emails and student.specialite:
+            teachers = await prisma.enseignant.find_many(
+                where={"id_departement": student.specialite.id_departement}
+            )
+            teacher_emails = [t.email for t in teachers]
+        
+        if not teacher_emails:
+            return []
+        
+        # Get their user accounts
+        users = await prisma.utilisateur.find_many(
+            where={
+                "email": {"in": teacher_emails},
+                "role": "TEACHER"
+            }
+        )
+        
+        # Sort in Python
+        users.sort(key=lambda u: (u.nom, u.prenom))
+        
+        return [format_user_info(user) for user in users]
+    
+    # DEPARTMENT_HEAD: Get all teachers and students in department
+    elif current_user.role == "DEPARTMENT_HEAD":
+        dept_head = await prisma.chefdepartement.find_first(
+            where={"id_utilisateur": current_user.id},
+            include={"departement": True}
+        )
+        
+        if not dept_head:
+            return []
+        
+        # Get all teachers in department
+        teachers = await prisma.enseignant.find_many(
+            where={"id_departement": dept_head.id_departement}
+        )
+        
+        # Get all students in department
+        students = await prisma.etudiant.find_many(
+            where={
+                "specialite": {
+                    "id_departement": dept_head.id_departement
+                }
+            }
+        )
+        
+        # Get user accounts
+        all_emails = [t.email for t in teachers] + [s.email for s in students]
+        users = await prisma.utilisateur.find_many(
+            where={
+                "email": {"in": all_emails},
+                "id": {"not": current_user.id}
+            }
+        )
+        
+        # Sort in Python
+        users.sort(key=lambda u: (u.role, u.nom, u.prenom))
+        
+        return [format_user_info(user) for user in users]
+    
+    return []
 
 
 @router.get("/users/search", response_model=List[UserInfo])
@@ -288,8 +442,8 @@ async def search_users(
     # Special handling for teachers - only show students they teach
     if current_user.role == "TEACHER":
         # Get all students this teacher teaches
-        teacher = await prisma.enseignant.find_unique(
-            where={"id_utilisateur": current_user.id}
+        teacher = await prisma.enseignant.find_first(
+            where={"utilisateur": {"id": current_user.id}}
         )
         
         if not teacher:
@@ -297,12 +451,11 @@ async def search_users(
         
         # Find all groups taught by this teacher through schedules
         schedules = await prisma.emploitemps.find_many(
-            where={"id_enseignant": teacher.id},
-            select={"id_groupe": True},
-            distinct=["id_groupe"]
+            where={"id_enseignant": teacher.id}
         )
         
-        group_ids = [s.id_groupe for s in schedules]
+        # Extract unique group IDs
+        group_ids = list(set([s.id_groupe for s in schedules]))
         
         if not group_ids:
             return []
@@ -346,12 +499,11 @@ async def search_users(
     
     users = await prisma.utilisateur.find_many(
         where=where_clause,
-        take=20,  # Limit results
-        order_by=[
-            {"nom": "asc"},
-            {"prenom": "asc"}
-        ]
+        take=20  # Limit results
     )
+    
+    # Sort in Python
+    users.sort(key=lambda u: (u.nom, u.prenom))
     
     return [format_user_info(user) for user in users]
 

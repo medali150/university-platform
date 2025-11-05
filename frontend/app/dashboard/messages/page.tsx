@@ -30,6 +30,7 @@ export default function MessagesPage() {
   
   // State
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [availableContacts, setAvailableContacts] = useState<UserInfo[]>([])
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
@@ -39,6 +40,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [showNewMessageDialog, setShowNewMessageDialog] = useState(false)
+  const [showAllContacts, setShowAllContacts] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when messages change
@@ -50,10 +52,11 @@ export default function MessagesPage() {
     scrollToBottom()
   }, [messages])
 
-  // Load conversations on mount
+  // Load conversations and available contacts on mount
   useEffect(() => {
     if (user) {
       loadConversations()
+      loadAvailableContacts()
     }
   }, [user])
 
@@ -76,12 +79,25 @@ export default function MessagesPage() {
   const loadConversations = async () => {
     try {
       setLoading(true)
+      console.log('💬 Loading conversations...')
       const data = await MessagesAPI.getConversations()
+      console.log(`✅ Loaded ${data.length} conversations:`, data)
       setConversations(data)
     } catch (error) {
-      console.error('Error loading conversations:', error)
+      console.error('❌ Error loading conversations:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAvailableContacts = async () => {
+    try {
+      console.log('📞 Loading available contacts...')
+      const data = await MessagesAPI.getAvailableContacts()
+      console.log(`✅ Loaded ${data.length} contacts:`, data)
+      setAvailableContacts(data)
+    } catch (error) {
+      console.error('❌ Error loading contacts:', error)
     }
   }
 
@@ -127,13 +143,58 @@ export default function MessagesPage() {
     setSearchUsers([])
   }
 
-  const filteredConversations = conversations.filter(conv =>
-    MessagesAPIClient.formatUserName(conv.user).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conv.user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Combine conversations and available contacts
+  const allContacts = () => {
+    const contactsMap = new Map<string, any>()
+    
+    // Add existing conversations first
+    conversations.forEach(conv => {
+      contactsMap.set(conv.userId, {
+        userId: conv.userId,
+        user: conv.user,
+        lastMessage: conv.lastMessage,
+        unreadCount: conv.unreadCount,
+        hasConversation: true
+      })
+    })
+    
+    // Add available contacts who don't have conversations yet
+    availableContacts.forEach(contact => {
+      if (!contactsMap.has(contact.id)) {
+        contactsMap.set(contact.id, {
+          userId: contact.id,
+          user: contact,
+          lastMessage: null,
+          unreadCount: 0,
+          hasConversation: false
+        })
+      }
+    })
+    
+    return Array.from(contactsMap.values())
+  }
+
+  const filteredContacts = allContacts().filter(contact =>
+    MessagesAPIClient.formatUserName(contact.user).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contact.user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  ).sort((a, b) => {
+    // Sort: conversations first, then by last message time or alphabetically
+    if (a.hasConversation && !b.hasConversation) return -1
+    if (!a.hasConversation && b.hasConversation) return 1
+    
+    if (a.lastMessage && b.lastMessage) {
+      return new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
+    }
+    
+    if (a.lastMessage && !b.lastMessage) return -1
+    if (!a.lastMessage && b.lastMessage) return 1
+    
+    // Alphabetical by name
+    return MessagesAPIClient.formatUserName(a.user).localeCompare(MessagesAPIClient.formatUserName(b.user))
+  })
 
   const selectedConvData = selectedConversation 
-    ? conversations.find(c => c.userId === selectedConversation)
+    ? filteredContacts.find(c => c.userId === selectedConversation)
     : null
 
   if (authLoading) {
@@ -220,38 +281,38 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* Conversations */}
+        {/* Contacts List */}
         <div className="flex-1 overflow-y-auto">
-          {loading && conversations.length === 0 ? (
+          {loading && conversations.length === 0 && availableContacts.length === 0 ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          ) : filteredConversations.length === 0 ? (
+          ) : filteredContacts.length === 0 ? (
             <div className="text-center py-12 px-4 text-muted-foreground">
               <MessageCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <p className="font-medium">Aucune conversation</p>
-              <p className="text-sm mt-1">Cliquez sur + pour commencer</p>
+              <p className="font-medium">Aucun contact</p>
+              <p className="text-sm mt-1">Aucun contact disponible</p>
             </div>
           ) : (
-            filteredConversations.map((conv) => (
+            filteredContacts.map((contact) => (
               <div
-                key={conv.userId}
+                key={contact.userId}
                 className={`p-4 cursor-pointer transition-all hover:bg-gray-50 border-l-4 ${
-                  selectedConversation === conv.userId 
+                  selectedConversation === contact.userId 
                     ? 'bg-blue-50 border-l-blue-500' 
                     : 'border-l-transparent'
                 }`}
-                onClick={() => setSelectedConversation(conv.userId)}
+                onClick={() => setSelectedConversation(contact.userId)}
               >
                 <div className="flex items-start space-x-3">
                   {/* Avatar */}
                   <div className="relative flex-shrink-0">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-                      {conv.user.prenom.charAt(0)}{conv.user.nom.charAt(0)}
+                      {contact.user.prenom.charAt(0)}{contact.user.nom.charAt(0)}
                     </div>
-                    {conv.unreadCount > 0 && (
+                    {contact.unreadCount > 0 && (
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {conv.unreadCount}
+                        {contact.unreadCount}
                       </div>
                     )}
                   </div>
@@ -259,20 +320,30 @@ export default function MessagesPage() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className={`font-semibold truncate ${conv.unreadCount > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
-                        {MessagesAPIClient.formatUserName(conv.user)}
+                      <h3 className={`font-semibold truncate ${contact.unreadCount > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                        {MessagesAPIClient.formatUserName(contact.user)}
                       </h3>
-                      <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
-                        {formatDistanceToNow(new Date(conv.lastMessage.createdAt), {
-                          addSuffix: false,
-                          locale: fr
-                        })}
-                      </span>
+                      {contact.lastMessage && (
+                        <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                          {formatDistanceToNow(new Date(contact.lastMessage.createdAt), {
+                            addSuffix: false,
+                            locale: fr
+                          })}
+                        </span>
+                      )}
                     </div>
-                    <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'font-medium text-gray-900' : 'text-muted-foreground'}`}>
-                      {conv.lastMessage.isSent && <Check className="inline h-3 w-3 mr-1" />}
-                      {conv.lastMessage.contenu}
-                    </p>
+                    {contact.lastMessage ? (
+                      <p className={`text-sm truncate ${contact.unreadCount > 0 ? 'font-medium text-gray-900' : 'text-muted-foreground'}`}>
+                        {contact.lastMessage.isSent && <Check className="inline h-3 w-3 mr-1" />}
+                        {contact.lastMessage.contenu}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">
+                        <Badge variant="secondary" className={MessagesAPIClient.getRoleBadgeColor(contact.user.role)}>
+                          {MessagesAPIClient.getRoleDisplayName(contact.user.role)}
+                        </Badge>
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

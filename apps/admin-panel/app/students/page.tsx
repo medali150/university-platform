@@ -301,7 +301,7 @@ export default function AdminStudentsPage() {
                           <div className="flex items-center">
                             <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                               <span className="text-blue-600 font-semibold">
-                                {student.firstName.charAt(0)}{student.lastName.charAt(0)}
+                                {student.firstName?.charAt(0) || '?'}{student.lastName?.charAt(0) || '?'}
                               </span>
                             </div>
                             <div className="ml-4">

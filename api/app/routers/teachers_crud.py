@@ -32,18 +32,18 @@ async def get_all_teachers(
         print("Starting teachers query...")
         
         # First, let's see if we can query teachers at all
-        teacher_count = await prisma.teacher.count()
+        teacher_count = await prisma.enseignant.count()
         print(f"Total teachers in database: {teacher_count}")
         
         if teacher_count == 0:
             return []
         
         # Try basic teacher query without includes
-        teachers = await prisma.teacher.find_many()
+        teachers = await prisma.enseignant.find_many()
         print(f"Retrieved {len(teachers)} teachers")
         
         # Try with minimal includes
-        teachers_with_user = await prisma.teacher.find_many(
+        teachers_with_user = await prisma.enseignant.find_many(
             include={"user": True}
         )
         print(f"Retrieved {len(teachers_with_user)} teachers with user info")
@@ -86,7 +86,7 @@ async def get_teacher_by_id(
 ):
     """Get teacher by ID (Admin only)"""
     try:
-        teacher = await prisma.teacher.find_unique(
+        teacher = await prisma.enseignant.find_unique(
             where={"id": teacher_id},
             include={
                 "user": True,
@@ -163,7 +163,7 @@ async def create_teacher(
             )
         
         # Check if user already exists
-        existing_user = await prisma.user.find_first(
+        existing_user = await prisma.utilisateur.find_first(
             where={
                 "OR": [
                     {"email": user_data.email},
@@ -179,7 +179,7 @@ async def create_teacher(
         
         # Validate department if provided
         if department_id:
-            department = await prisma.department.find_unique(where={"id": department_id})
+            department = await prisma.departement.find_unique(where={"id": department_id})
             if not department:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -188,7 +188,7 @@ async def create_teacher(
         
         # Create user first
         hashed_password = hash_password(user_data.password)
-        new_user = await prisma.user.create(
+        new_user = await prisma.utilisateur.create(
             data={
                 "firstName": user_data.firstName,
                 "lastName": user_data.lastName,
@@ -207,7 +207,7 @@ async def create_teacher(
         if department_id:
             teacher_data["departmentId"] = department_id
             
-        new_teacher = await prisma.teacher.create(data=teacher_data)
+        new_teacher = await prisma.enseignant.create(data=teacher_data)
         
         print(f"Created teacher {new_teacher.id} for user {new_user.id}")
         
@@ -230,16 +230,16 @@ async def update_teacher(
     """Update teacher information (Admin only)"""
     try:
         # Check if teacher exists (try teacher ID first, then user ID)
-        teacher = await prisma.teacher.find_unique(
+        teacher = await prisma.enseignant.find_unique(
             where={"id": teacher_id},
             include={"user": True}
         )
         
         if not teacher or not teacher.user:
             # Try to find by user ID in case that's what we're getting
-            user = await prisma.user.find_unique(where={"id": teacher_id})
+            user = await prisma.utilisateur.find_unique(where={"id": teacher_id})
             if user:
-                teacher = await prisma.teacher.find_unique(
+                teacher = await prisma.enseignant.find_unique(
                     where={"userId": user.id},
                     include={"user": True}
                 )
@@ -259,7 +259,7 @@ async def update_teacher(
                 user_update_data["lastName"] = user_data["lastName"]
             if "email" in user_data:
                 # Check if email is already in use by another user
-                existing = await prisma.user.find_first(
+                existing = await prisma.utilisateur.find_first(
                     where={
                         "email": user_data["email"],
                         "id": {"not": teacher.userId}
@@ -273,7 +273,7 @@ async def update_teacher(
                 user_update_data["email"] = user_data["email"]
             if "login" in user_data:
                 # Check if login is already in use by another user
-                existing = await prisma.user.find_first(
+                existing = await prisma.utilisateur.find_first(
                     where={
                         "login": user_data["login"],
                         "id": {"not": teacher.userId}
@@ -289,7 +289,7 @@ async def update_teacher(
                 user_update_data["passwordHash"] = hash_password(user_data["password"])
             
             if user_update_data:
-                await prisma.user.update(
+                await prisma.utilisateur.update(
                     where={"id": teacher.userId},
                     data=user_update_data
                 )
@@ -298,7 +298,7 @@ async def update_teacher(
         teacher_update_data = {}
         if department_id is not None:
             if department_id:  # If not empty string
-                department = await prisma.department.find_unique(where={"id": department_id})
+                department = await prisma.departement.find_unique(where={"id": department_id})
                 if not department:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
@@ -309,13 +309,13 @@ async def update_teacher(
                 teacher_update_data["departmentId"] = None
         
         if teacher_update_data:
-            await prisma.teacher.update(
+            await prisma.enseignant.update(
                 where={"id": teacher.id},
                 data=teacher_update_data
             )
         
         # Get updated teacher data
-        updated_teacher = await prisma.teacher.find_unique(
+        updated_teacher = await prisma.enseignant.find_unique(
             where={"id": teacher.id},
             include={"user": True}
         )
@@ -341,13 +341,13 @@ async def delete_teacher(
     """Delete a teacher (Admin only)"""
     try:
         # Find teacher (try teacher ID first, then user ID)
-        teacher = await prisma.teacher.find_unique(where={"id": teacher_id})
+        teacher = await prisma.enseignant.find_unique(where={"id": teacher_id})
         
         if not teacher:
             # Try to find by user ID in case that's what we're getting
-            user = await prisma.user.find_unique(where={"id": teacher_id})
+            user = await prisma.utilisateur.find_unique(where={"id": teacher_id})
             if user:
-                teacher = await prisma.teacher.find_unique(where={"userId": user.id})
+                teacher = await prisma.enseignant.find_unique(where={"userId": user.id})
             
             if not teacher:
                 raise HTTPException(
@@ -359,16 +359,16 @@ async def delete_teacher(
         teacher_record_id = teacher.id
         
         # Delete teacher-specialty relationships first
-        # await prisma.teacher_specialty.delete_many(
+        # await prisma.enseignant_specialty.delete_many(
         #     where={"teacherId": teacher_record_id}
         # )
         # TODO: Handle specialty cleanup through subjects
         
         # Delete teacher record
-        await prisma.teacher.delete(where={"id": teacher_record_id})
+        await prisma.enseignant.delete(where={"id": teacher_record_id})
         
         # Delete associated user
-        await prisma.user.delete(where={"id": user_id})
+        await prisma.utilisateur.delete(where={"id": user_id})
         
         return {"message": "Teacher deleted successfully"}
     except HTTPException:
@@ -387,7 +387,7 @@ async def add_teacher_specialty(
     """Add a specialty to a teacher (Admin only)"""
     try:
         # Check if teacher exists
-        teacher = await prisma.teacher.find_unique(where={"id": teacher_id})
+        teacher = await prisma.enseignant.find_unique(where={"id": teacher_id})
         if not teacher:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -395,7 +395,7 @@ async def add_teacher_specialty(
             )
         
         # Check if specialty exists
-        specialty = await prisma.specialty.find_unique(where={"id": specialty_id})
+        specialty = await prisma.specialite.find_unique(where={"id": specialty_id})
         if not specialty:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -403,7 +403,7 @@ async def add_teacher_specialty(
             )
         
         # Check if relationship already exists
-        # existing = await prisma.teacher_specialty.find_first(
+        # existing = await prisma.enseignant_specialty.find_first(
         #     where={
         #         "teacherId": teacher_id,
         #         "specialtyId": specialty_id
@@ -417,7 +417,7 @@ async def add_teacher_specialty(
             )
         
         # Create relationship
-        # await prisma.teacher_specialty.create(
+        # await prisma.enseignant_specialty.create(
         #     data={
         #         "teacherId": teacher_id,
         #         "specialtyId": specialty_id
@@ -442,7 +442,7 @@ async def remove_teacher_specialty(
     """Remove a specialty from a teacher (Admin only)"""
     try:
         # Check if relationship exists
-        # existing = await prisma.teacher_specialty.find_first(
+        # existing = await prisma.enseignant_specialty.find_first(
         #     where={
         #         "teacherId": teacher_id,
         #         "specialtyId": specialty_id
@@ -454,7 +454,7 @@ async def remove_teacher_specialty(
             pass
         
         # Delete relationship
-        # await prisma.teacher_specialty.delete(where={"id": existing.id})
+        # await prisma.enseignant_specialty.delete(where={"id": existing.id})
         # TODO: Implement through subjects
         
         return {"message": "Specialty removed from teacher successfully"}
@@ -479,7 +479,7 @@ async def get_current_teacher(
             detail="Teacher access required"
         )
     
-    teacher = await prisma.teacher.find_unique(
+    teacher = await prisma.enseignant.find_unique(
         where={"userId": current_user.id},
         include={
             "user": True,
@@ -566,7 +566,7 @@ async def get_my_schedules(
             else:
                 where_clause["date"] = {"lte": date_to}
         
-        schedules = await prisma.schedule.find_many(
+        schedules = await prisma.emploitemps.find_many(
             where=where_clause,
             include={
                 "room": True,
@@ -595,7 +595,7 @@ async def get_schedule_students(
     """Get students in a specific schedule to mark absences"""
     try:
         # Verify teacher owns this schedule
-        schedule = await prisma.schedule.find_unique(
+        schedule = await prisma.emploitemps.find_unique(
             where={"id": schedule_id},
             include={
                 "group": True,
@@ -617,7 +617,7 @@ async def get_schedule_students(
             )
         
         # Get students in the group
-        students = await prisma.student.find_many(
+        students = await prisma.etudiant.find_many(
             where={"groupId": schedule.groupId},
             include={
                 "user": True,
@@ -696,7 +696,7 @@ async def create_absence(
     """Create a new absence record for a student"""
     try:
         # Verify the schedule belongs to the teacher
-        schedule = await prisma.schedule.find_unique(
+        schedule = await prisma.emploitemps.find_unique(
             where={"id": absence_data.scheduleId},
             include={
                 "subject": True,
@@ -718,7 +718,7 @@ async def create_absence(
             )
         
         # Verify the student exists and is in the group
-        student = await prisma.student.find_unique(
+        student = await prisma.etudiant.find_unique(
             where={"id": absence_data.studentId},
             include={"user": True, "group": True}
         )
@@ -999,7 +999,7 @@ async def get_student_absence_statistics(
     """Get absence statistics for a specific student in teacher's classes"""
     try:
         # Verify student exists
-        student = await prisma.student.find_unique(
+        student = await prisma.etudiant.find_unique(
             where={"id": student_id},
             include={"user": True}
         )

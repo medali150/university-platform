@@ -159,10 +159,12 @@ export default function TeacherDashboard() {
                 View My Groups
               </Button>
             </Link>
-            <Button variant="outline" className="w-full justify-start">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Session
-            </Button>
+            <Link href="/dashboard/teacher/grades">
+              <Button variant="default" className="w-full justify-start bg-green-600 hover:bg-green-700">
+                <BookOpen className="mr-2 h-4 w-4" />
+                📝 Gestion des Notes
+              </Button>
+            </Link>
             <Link href="/dashboard/teacher/absences">
               <Button variant="outline" className="w-full justify-start">
                 <UserX className="mr-2 h-4 w-4" />

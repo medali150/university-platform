@@ -5,11 +5,17 @@ from app.core.config import settings
 from app.db.prisma_client import lifespan
 from app.routers import auth, admin, departments, specialties
 from app.routers import students_crud, teachers_crud, department_heads_crud
+from app.routers import admin_students, admin_teachers, admin_department_heads  # NEW: Fixed admin routes
 from app.routers import levels_crud, subjects_crud, admin_dashboard
 from app.routers import department_head_dashboard, department_head_timetable
 from app.routers import levels_public, absence_management, teacher_profile, simple_absences, timetable_management, absence_notifications, student_profile, debug_absences, room_occupancy, notifications
 from app.routers import timetables_optimized  # Optimized timetable system (replaces old schedules)
 from app.routers import messages  # Messaging system for teacher-student communication
+from app.routers import student_averages  # Student averages management for department heads
+from app.routers import teacher_grades  # Teacher grade submission and management
+from app.routers import student_grades  # Student grades viewing
+from app.routers import department_head_analytics  # Department head analytics and statistics
+from app.routers import events  # Events and news system
 
 # Create FastAPI app
 app = FastAPI(
@@ -33,9 +39,12 @@ app.include_router(auth.router)
 app.include_router(departments.router)
 app.include_router(specialties.router)
 app.include_router(admin.router)
-app.include_router(students_crud.router)
-app.include_router(teachers_crud.router)
-app.include_router(department_heads_crud.router)
+# app.include_router(students_crud.router)  # OLD - Has bugs
+# app.include_router(teachers_crud.router)  # OLD - Has bugs
+# app.include_router(department_heads_crud.router)  # OLD - Has bugs
+app.include_router(admin_students.router)  # NEW: Fixed with French models
+app.include_router(admin_teachers.router)  # NEW: Fixed with French models
+app.include_router(admin_department_heads.router)  # NEW: Fixed with French models
 app.include_router(levels_crud.router)
 app.include_router(subjects_crud.router)
 app.include_router(levels_public.router)
@@ -53,6 +62,11 @@ app.include_router(room_occupancy.router)
 app.include_router(notifications.router)
 app.include_router(timetables_optimized.router)  # NEW: Optimized timetable system
 app.include_router(messages.router)  # NEW: Messaging system
+app.include_router(student_averages.router)  # NEW: Student averages management
+app.include_router(teacher_grades.router)  # NEW: Teacher grade submission
+app.include_router(student_grades.router)  # NEW: Student grades viewing
+app.include_router(department_head_analytics.router)  # NEW: Department head analytics
+app.include_router(events.router)  # NEW: Events and news system
 
 
 @app.get("/")

@@ -112,7 +112,42 @@ async def get_department_groups(
         order=[{"nom": "asc"}]
     )
     
-    return groups
+    # Format response for frontend compatibility with student counts
+    formatted_groups = []
+    for group in groups:
+        # Count students in this group
+        student_count = await prisma.etudiant.count(
+            where={"id_groupe": group.id}
+        )
+        
+        formatted_groups.append({
+            "id": group.id,
+            "nom": group.nom,
+            "code": group.code if hasattr(group, 'code') else group.nom,
+            "id_niveau": group.id_niveau,
+            "capacite": 30,  # Default capacity, can be adjusted
+            "createdAt": group.createdAt.isoformat() if group.createdAt else None,
+            "updatedAt": group.updatedAt.isoformat() if group.updatedAt else None,
+            "_count": {
+                "etudiants": student_count
+            },
+            "niveau": {
+                "id": group.niveau.id,
+                "nom": group.niveau.nom,
+                "id_specialite": group.niveau.id_specialite,
+                "specialite": {
+                    "id": group.niveau.specialite.id,
+                    "nom": group.niveau.specialite.nom,
+                    "id_departement": group.niveau.specialite.id_departement,
+                    "departement": {
+                        "id": group.niveau.specialite.departement.id,
+                        "nom": group.niveau.specialite.departement.nom
+                    }
+                }
+            }
+        })
+    
+    return formatted_groups
 
 @router.get("/teachers")
 async def get_department_teachers(

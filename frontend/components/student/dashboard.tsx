@@ -348,13 +348,23 @@ export default function StudentDashboard() {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Link href="/dashboard/student/timetable">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardContent className="p-4 text-center">
               <CalendarDays className="h-8 w-8 mx-auto mb-2 text-blue-600" />
               <h3 className="font-semibold text-gray-900">Emploi du temps</h3>
               <p className="text-sm text-gray-600">Consulter votre planning</p>
+            </CardContent>
+          </Card>
+        </Link>
+        
+        <Link href="/dashboard/student/grades">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4 text-center">
+              <BookOpen className="h-8 w-8 mx-auto mb-2 text-orange-600" />
+              <h3 className="font-semibold text-gray-900">Mes Notes</h3>
+              <p className="text-sm text-gray-600">Consulter mes résultats</p>
             </CardContent>
           </Card>
         </Link>

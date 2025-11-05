@@ -23,7 +23,7 @@ async def get_all_department_heads(
         if department_id:
             where_conditions["departmentId"] = department_id
             
-        department_heads = await prisma.departmenthead.find_many(
+        department_heads = await prisma.chefdepartement.find_many(
             where=where_conditions,
             include={
                 "user": True,
@@ -60,7 +60,7 @@ async def get_department_head_by_id(
 ):
     """Get department head by ID (Admin only)"""
     try:
-        dept_head = await prisma.departmenthead.find_unique(
+        dept_head = await prisma.chefdepartement.find_unique(
             where={"id": dept_head_id},
             include={
                 "user": True,
@@ -111,7 +111,7 @@ async def create_department_head(
             )
         
         # Check if user already exists
-        existing_user = await prisma.user.find_first(
+        existing_user = await prisma.utilisateur.find_first(
             where={
                 "OR": [
                     {"email": user_data.email},
@@ -126,7 +126,7 @@ async def create_department_head(
             )
         
         # Validate department
-        department = await prisma.department.find_unique(where={"id": department_id})
+        department = await prisma.departement.find_unique(where={"id": department_id})
         if not department:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -134,7 +134,7 @@ async def create_department_head(
             )
         
         # Check if department already has a head
-        existing_head = await prisma.departmenthead.find_first(
+        existing_head = await prisma.chefdepartement.find_first(
             where={"departmentId": department_id}
         )
         if existing_head:
@@ -145,7 +145,7 @@ async def create_department_head(
         
         # Create user first
         hashed_password = hash_password(user_data.password)
-        new_user = await prisma.user.create(
+        new_user = await prisma.utilisateur.create(
             data={
                 "firstName": user_data.firstName,
                 "lastName": user_data.lastName,
@@ -162,7 +162,7 @@ async def create_department_head(
             "departmentId": department_id
         }
             
-        new_dept_head = await prisma.departmenthead.create(
+        new_dept_head = await prisma.chefdepartement.create(
             data=dept_head_data,
             include={
                 "user": True,
@@ -200,7 +200,7 @@ async def update_department_head(
     """Update department head information (Admin only)"""
     try:
         # Check if department head exists
-        dept_head = await prisma.departmenthead.find_unique(where={"id": dept_head_id})
+        dept_head = await prisma.chefdepartement.find_unique(where={"id": dept_head_id})
         if not dept_head:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -212,7 +212,7 @@ async def update_department_head(
         
         if department_id:
             # Validate new department
-            department = await prisma.department.find_unique(where={"id": department_id})
+            department = await prisma.departement.find_unique(where={"id": department_id})
             if not department:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -220,7 +220,7 @@ async def update_department_head(
                 )
             
             # Check if the new department already has a head (and it's not the current one)
-            existing_head = await prisma.departmenthead.find_first(
+            existing_head = await prisma.chefdepartement.find_first(
                 where={
                     "departmentId": department_id,
                     "id": {"not": dept_head_id}
@@ -235,7 +235,7 @@ async def update_department_head(
             update_data["departmentId"] = department_id
         
         if update_data:
-            updated_dept_head = await prisma.departmenthead.update(
+            updated_dept_head = await prisma.chefdepartement.update(
                 where={"id": dept_head_id},
                 data=update_data,
                 include={
@@ -263,7 +263,7 @@ async def update_department_head(
             }
         else:
             # Even if no updates, return current department head info
-            current_dept_head = await prisma.departmenthead.find_unique(
+            current_dept_head = await prisma.chefdepartement.find_unique(
                 where={"id": dept_head_id},
                 include={
                     "user": True,
@@ -302,7 +302,7 @@ async def delete_department_head(
     """Delete a department head (Admin only)"""
     try:
         # Find department head and get user info
-        dept_head = await prisma.departmenthead.find_unique(
+        dept_head = await prisma.chefdepartement.find_unique(
             where={"id": dept_head_id},
             include={
                 "user": True,
@@ -324,10 +324,10 @@ async def delete_department_head(
         }
         
         # Delete department head record first (cascade will handle relationships)
-        await prisma.departmenthead.delete(where={"id": dept_head_id})
+        await prisma.chefdepartement.delete(where={"id": dept_head_id})
         
         # Delete associated user
-        await prisma.user.delete(where={"id": user_id})
+        await prisma.utilisateur.delete(where={"id": user_id})
         
         return {
             "message": "Department head deleted successfully",
@@ -350,7 +350,7 @@ async def assign_teacher_as_department_head(
     """Assign an existing teacher as department head (Admin only)"""
     try:
         # Find teacher
-        teacher = await prisma.teacher.find_unique(
+        teacher = await prisma.enseignant.find_unique(
             where={"id": teacher_id},
             include={"user": True}
         )
@@ -361,7 +361,7 @@ async def assign_teacher_as_department_head(
             )
         
         # Validate department
-        department = await prisma.department.find_unique(where={"id": department_id})
+        department = await prisma.departement.find_unique(where={"id": department_id})
         if not department:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -369,7 +369,7 @@ async def assign_teacher_as_department_head(
             )
         
         # Check if department already has a head
-        existing_head = await prisma.departmenthead.find_first(
+        existing_head = await prisma.chefdepartement.find_first(
             where={"departmentId": department_id}
         )
         if existing_head:
@@ -379,7 +379,7 @@ async def assign_teacher_as_department_head(
             )
         
         # Check if teacher is already a department head
-        existing_teacher_head = await prisma.departmenthead.find_first(
+        existing_teacher_head = await prisma.chefdepartement.find_first(
             where={"userId": teacher.userId}
         )
         if existing_teacher_head:
@@ -389,7 +389,7 @@ async def assign_teacher_as_department_head(
             )
         
         # Update user role to DEPARTMENT_HEAD
-        await prisma.user.update(
+        await prisma.utilisateur.update(
             where={"id": teacher.userId},
             data={"role": "DEPARTMENT_HEAD"}
         )
@@ -400,7 +400,7 @@ async def assign_teacher_as_department_head(
             "departmentId": department_id
         }
             
-        new_dept_head = await prisma.departmenthead.create(
+        new_dept_head = await prisma.chefdepartement.create(
             data=dept_head_data,
             include={
                 "user": True,
@@ -442,7 +442,7 @@ async def demote_department_head_to_teacher(
     """Demote department head back to teacher role (Admin only)"""
     try:
         # Find department head
-        dept_head = await prisma.departmenthead.find_unique(
+        dept_head = await prisma.chefdepartement.find_unique(
             where={"id": dept_head_id},
             include={
                 "user": True,
@@ -458,7 +458,7 @@ async def demote_department_head_to_teacher(
         user_id = dept_head.userId
         
         # Check if user still has teacher record
-        teacher = await prisma.teacher.find_first(where={"userId": user_id})
+        teacher = await prisma.enseignant.find_first(where={"userId": user_id})
         if not teacher:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -475,10 +475,10 @@ async def demote_department_head_to_teacher(
         }
         
         # Delete department head record
-        await prisma.departmenthead.delete(where={"id": dept_head_id})
+        await prisma.chefdepartement.delete(where={"id": dept_head_id})
         
         # Update user role back to TEACHER
-        updated_user = await prisma.user.update(
+        updated_user = await prisma.utilisateur.update(
             where={"id": user_id},
             data={"role": "TEACHER"},
             include={"teacher": {"include": {"department": True}}}
@@ -509,7 +509,7 @@ async def update_department_head_user_info(
     """Update department head user information (name, email, etc.) - Admin only"""
     try:
         # Find department head
-        dept_head = await prisma.departmenthead.find_unique(
+        dept_head = await prisma.chefdepartement.find_unique(
             where={"id": dept_head_id},
             include={"user": True, "department": True}
         )
@@ -551,7 +551,7 @@ async def update_department_head_user_info(
             if "login" in update_data:
                 conflict_conditions.append({"login": update_data["login"]})
             
-            existing_user = await prisma.user.find_first(
+            existing_user = await prisma.utilisateur.find_first(
                 where={
                     "AND": [
                         {"id": {"not": dept_head.userId}},
@@ -566,13 +566,13 @@ async def update_department_head_user_info(
                 )
         
         # Update user information
-        updated_user = await prisma.user.update(
+        updated_user = await prisma.utilisateur.update(
             where={"id": dept_head.userId},
             data=update_data
         )
         
         # Get updated department head info
-        updated_dept_head = await prisma.departmenthead.find_unique(
+        updated_dept_head = await prisma.chefdepartement.find_unique(
             where={"id": dept_head_id},
             include={"user": True, "department": True}
         )

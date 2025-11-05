@@ -139,6 +139,21 @@ class MessagesAPIClient {
   // ==========================================================================
 
   /**
+   * Get all available contacts for current user
+   * - Teachers get all their students
+   * - Students get all their teachers
+   * 
+   * @returns List of available contacts
+   */
+  async getAvailableContacts(): Promise<UserInfo[]> {
+    const response = await fetch(
+      `${this.baseURL}/messages/available-contacts`,
+      { headers: this.getHeaders() }
+    );
+    return this.handleResponse<UserInfo[]>(response);
+  }
+
+  /**
    * Search for users to start a conversation with
    * 
    * @param query - Search query (minimum 2 characters)

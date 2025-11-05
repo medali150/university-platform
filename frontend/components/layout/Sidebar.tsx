@@ -16,7 +16,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Building
+  Building,
+  Newspaper
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -29,6 +30,7 @@ interface SidebarProps {
 const studentNavItems = [
   { href: '/dashboard/student', label: 'Dashboard', icon: Home },
   { href: '/dashboard/student/timetable', label: 'Timetable', icon: Calendar },
+  { href: '/dashboard/events', label: 'Événements', icon: Newspaper },
   { href: '/dashboard/student/profile', label: 'Mon Profil', icon: Users },
   { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
   { href: '/dashboard/absences', label: 'Absences', icon: UserX },
@@ -46,6 +48,7 @@ const teacherNavItems = [
 const departmentHeadNavItems = [
   { href: '/dashboard/department-head', label: 'Dashboard', icon: Home },
   { href: '/dashboard/department-head/timetable', label: 'Emploi du Temps', icon: Calendar },
+  { href: '/dashboard/events', label: 'Événements', icon: Newspaper },
   { href: '/dashboard/department-head/classes', label: 'Classes', icon: Users },
   { href: '/dashboard/department-head/subjects', label: 'Matières', icon: BookOpen },
   { href: '/dashboard/department-head/analytics', label: 'Statistiques', icon: BarChart3 },
