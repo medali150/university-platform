@@ -118,6 +118,82 @@ async def get_teacher_profile(
     return profile
 
 
+@router.get("/timetable")
+async def get_teacher_timetable(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    prisma: Prisma = Depends(get_prisma),
+    current_user = Depends(require_teacher)
+):
+    """Get teacher's timetable/schedule for a date range"""
+    
+    if not current_user.enseignant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No teacher record found for this user"
+        )
+    
+    teacher = await prisma.enseignant.find_unique(
+        where={"id": current_user.enseignant_id}
+    )
+    
+    if not teacher:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Teacher profile not found"
+        )
+    
+    # Parse dates or use default range (current week)
+    from datetime import timedelta
+    
+    if start_date:
+        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+    else:
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        start_dt = datetime.combine(monday, datetime.min.time())  # Start of week (Monday)
+    
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+    else:
+        sunday = start_dt.date() + timedelta(days=6)
+        end_dt = datetime.combine(sunday, datetime.max.time())  # End of week (Sunday)
+    
+    # Get teacher's schedules
+    schedules = await prisma.emploitemps.find_many(
+        where={
+            "id_enseignant": teacher.id,
+            "date": {
+                "gte": start_dt,
+                "lte": end_dt
+            }
+        },
+        include={
+            "matiere": True,
+            "salle": True,
+            "groupe": {
+                "include": {
+                    "niveau": {
+                        "include": {
+                            "specialite": True
+                        }
+                    }
+                }
+            }
+        },
+        order=[
+            {"date": "asc"},
+            {"heure_debut": "asc"}
+        ]
+    )
+    
+    return {
+        "schedules": schedules,
+        "start_date": start_dt.date().isoformat(),
+        "end_date": end_dt.date().isoformat()
+    }
+
+
 @router.put("/profile/department")
 async def update_teacher_department(
     request: DepartmentUpdateRequest,

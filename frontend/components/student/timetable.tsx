@@ -18,7 +18,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
-import TimetableAPI, { TimetableResponse, SessionStatus } from '@/lib/timetable-api';
+import { StudentAPI } from '@/lib/student-api';
 
 const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
@@ -32,7 +32,7 @@ const TIME_SLOTS = [
 ];
 
 interface WeekViewProps {
-  scheduleData: TimetableResponse;
+  scheduleData: any;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
@@ -65,7 +65,7 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
 
   // Count total courses
   let totalCourses = 0;
-  Object.values(timetable).forEach((sessions) => {
+  Object.values(timetable).forEach((sessions: any) => {
     totalCourses += sessions.length;
   });
 
@@ -127,7 +127,7 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
                             <div className="space-y-1">
                               <div className="font-semibold text-sm text-blue-900 flex items-start gap-1">
                                 <BookOpen className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                <span className="line-clamp-2">{session.matiere.nom}</span>
+                                <span className="line-clamp-2">{session.subject}</span>
                               </div>
                               
                               <div className="text-xs text-gray-700 space-y-0.5">
@@ -138,23 +138,21 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
                                 
                                 <div className="flex items-center gap-1">
                                   <User className="h-3 w-3" />
-                                  <span className="truncate">
-                                    {session.enseignant.prenom} {session.enseignant.nom}
-                                  </span>
+                                  <span className="truncate">{session.teacher}</span>
                                 </div>
                                 
                                 <div className="flex items-center gap-1">
                                   <MapPin className="h-3 w-3" />
-                                  <span>Salle {session.salle.code}</span>
+                                  <span>Salle {session.room}</span>
                                 </div>
                               </div>
 
-                              {session.status === SessionStatus.PLANNED && (
+                              {session.status === 'PLANNED' && (
                                 <Badge variant="default" className="text-xs">
                                   Programmé
                                 </Badge>
                               )}
-                              {session.status === SessionStatus.CANCELED && (
+                              {session.status === 'CANCELED' && (
                                 <Badge variant="destructive" className="text-xs">
                                   Annulé
                                 </Badge>
@@ -196,11 +194,15 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
 };
 
 export default function StudentTimetablePage() {
-  const [scheduleData, setScheduleData] = useState<TimetableResponse | null>(null);
+  const [scheduleData, setScheduleData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(() => {
-    return TimetableAPI.getWeekStart(new Date());
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today.setDate(diff));
+    return monday.toISOString().split('T')[0];
   });
 
   const loadSchedule = async (weekStart: string) => {
@@ -208,7 +210,7 @@ export default function StudentTimetablePage() {
       setLoading(true);
       setError(null);
 
-      const data = await TimetableAPI.getStudentWeeklySchedule(weekStart);
+      const data = await StudentAPI.getUniversityTimetable(0);
       setScheduleData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load schedule');
@@ -225,14 +227,26 @@ export default function StudentTimetablePage() {
     if (direction === 'next') {
       const nextDate = new Date(currentWeekStart);
       nextDate.setDate(nextDate.getDate() + 7);
-      setCurrentWeekStart(TimetableAPI.getWeekStart(nextDate));
+      const day = nextDate.getDay();
+      const diff = nextDate.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(nextDate.setDate(diff));
+      setCurrentWeekStart(monday.toISOString().split('T')[0]);
     } else {
-      setCurrentWeekStart(TimetableAPI.getPreviousWeekStart(currentWeekStart));
+      const prevDate = new Date(currentWeekStart);
+      prevDate.setDate(prevDate.getDate() - 7);
+      const day = prevDate.getDay();
+      const diff = prevDate.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(prevDate.setDate(diff));
+      setCurrentWeekStart(monday.toISOString().split('T')[0]);
     }
   };
 
   const goToCurrentWeek = () => {
-    setCurrentWeekStart(TimetableAPI.getWeekStart(new Date()));
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today.setDate(diff));
+    setCurrentWeekStart(monday.toISOString().split('T')[0]);
   };
 
   const formatWeekRange = () => {

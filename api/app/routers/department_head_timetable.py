@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from typing import List, Optional
 from prisma import Prisma
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timezone, timedelta
 from pydantic import BaseModel
 
 from app.db.prisma_client import get_prisma
@@ -30,6 +30,9 @@ class ScheduleCreate(BaseModel):
     group_id: str
     teacher_id: str
     room_id: str
+    recurrence: Optional[str] = "WEEKLY"  # WEEKLY, NONE
+    semester_start: Optional[str] = None  # Format: "YYYY-MM-DD"
+    semester_end: Optional[str] = None    # Format: "YYYY-MM-DD"
 
 class ScheduleUpdate(BaseModel):
     date: Optional[str] = None
@@ -499,15 +502,19 @@ async def get_department_schedules(
         where_clause["id_enseignant"] = teacher_id
     
     if date_from:
-        date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
-        where_clause["date"] = {"gte": date_from_obj}
+        # Convert to datetime at start of day
+        date_from_obj = datetime.strptime(date_from, "%Y-%m-%d")
+        date_from_dt = datetime.combine(date_from_obj.date(), datetime.min.time())
+        where_clause["date"] = {"gte": date_from_dt}
     
     if date_to:
-        date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
+        # Convert to datetime at end of day
+        date_to_obj = datetime.strptime(date_to, "%Y-%m-%d")
+        date_to_dt = datetime.combine(date_to_obj.date(), datetime.max.time())
         if "date" in where_clause:
-            where_clause["date"]["lte"] = date_to_obj
+            where_clause["date"]["lte"] = date_to_dt
         else:
-            where_clause["date"] = {"lte": date_to_obj}
+            where_clause["date"] = {"lte": date_to_dt}
     
     schedules = await prisma.emploitemps.find_many(
         where=where_clause,
@@ -600,73 +607,97 @@ async def create_schedule(
     start_datetime = create_local_datetime(schedule_date, start_time_obj)
     end_datetime = create_local_datetime(schedule_date, end_time_obj)
     
-    # Check for conflicts (same room, same time)
-    # Use start of day and end of day for date comparison
-    day_start = create_local_datetime(schedule_date, datetime.min.time())
-    day_end = create_local_datetime(schedule_date, datetime.max.time())
-    
-    existing_schedule = await prisma.emploitemps.find_first(
-        where={
-            "date": {"gte": day_start, "lte": day_end},
-            "id_salle": schedule_data.room_id,
-            "OR": [
-                {
-                    "AND": [
-                        {"heure_debut": {"lte": start_datetime}},
-                        {"heure_fin": {"gt": start_datetime}}
-                    ]
-                },
-                {
-                    "AND": [
-                        {"heure_debut": {"lt": end_datetime}},
-                        {"heure_fin": {"gte": end_datetime}}
-                    ]
-                },
-                {
-                    "AND": [
-                        {"heure_debut": {"gte": start_datetime}},
-                        {"heure_fin": {"lte": end_datetime}}
-                    ]
-                }
-            ]
-        }
-    )
-    
-    if existing_schedule:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Room is already booked for this time slot"
-        )
-    
-    # Create the schedule
+    # Create the schedule(s)
     try:
-        # Debug: Print data before creation
-        print(f"🔍 Creating schedule with:")
-        print(f"   date: {schedule_date} (type: {type(schedule_date)})")
-        print(f"   heure_debut: {start_datetime} (type: {type(start_datetime)})")
-        print(f"   heure_fin: {end_datetime} (type: {type(end_datetime)})")
-        print(f"   id_salle: {schedule_data.room_id}")
-        print(f"   id_matiere: {schedule_data.subject_id}")
-        print(f"   id_groupe: {schedule_data.group_id}")
-        print(f"   id_enseignant: {schedule_data.teacher_id}")
+        created_schedules = []
         
-        new_schedule = await prisma.emploitemps.create(
-            data={
-                "date": start_datetime,  # Use datetime instead of date
-                "heure_debut": start_datetime,
-                "heure_fin": end_datetime,
-                "id_salle": schedule_data.room_id,
-                "id_matiere": schedule_data.subject_id,
-                "id_groupe": schedule_data.group_id,
-                "id_enseignant": schedule_data.teacher_id
-            },
-            include={
-                "salle": True,
-                "matiere": True,
-                "groupe": True,
-                "enseignant": True
-            }
-        )
+        # Determine if we should create recurring schedules
+        if schedule_data.recurrence == "WEEKLY" and schedule_data.semester_end:
+            # Create recurring weekly schedules
+            semester_end_date = datetime.strptime(schedule_data.semester_end, "%Y-%m-%d").date()
+            current_date = schedule_date
+            week_day = current_date.weekday()  # 0=Monday, 6=Sunday
+            
+            print(f"🔁 Creating WEEKLY recurring schedule from {schedule_date} to {semester_end_date}")
+            
+            while current_date <= semester_end_date:
+                # Create datetime objects for this occurrence
+                occurrence_start = create_local_datetime(current_date, start_time_obj)
+                occurrence_end = create_local_datetime(current_date, end_time_obj)
+                
+                # Check for conflicts
+                day_start = create_local_datetime(current_date, datetime.min.time())
+                day_end = create_local_datetime(current_date, datetime.max.time())
+                
+                conflict = await prisma.emploitemps.find_first(
+                    where={
+                        "date": {"gte": day_start, "lte": day_end},
+                        "id_salle": schedule_data.room_id,
+                        "OR": [
+                            {
+                                "AND": [
+                                    {"heure_debut": {"lte": occurrence_start}},
+                                    {"heure_fin": {"gt": occurrence_start}}
+                                ]
+                            },
+                            {
+                                "AND": [
+                                    {"heure_debut": {"lt": occurrence_end}},
+                                    {"heure_fin": {"gte": occurrence_end}}
+                                ]
+                            },
+                            {
+                                "AND": [
+                                    {"heure_debut": {"gte": occurrence_start}},
+                                    {"heure_fin": {"lte": occurrence_end}}
+                                ]
+                            }
+                        ]
+                    }
+                )
+                
+                if not conflict:
+                    # Create schedule for this week
+                    new_schedule = await prisma.emploitemps.create(
+                        data={
+                            "date": occurrence_start,
+                            "heure_debut": occurrence_start,
+                            "heure_fin": occurrence_end,
+                            "id_salle": schedule_data.room_id,
+                            "id_matiere": schedule_data.subject_id,
+                            "id_groupe": schedule_data.group_id,
+                            "id_enseignant": schedule_data.teacher_id,
+                            "is_recurring": True,
+                            "week_day": week_day + 1  # Store as 1-7 instead of 0-6
+                        }
+                    )
+                    created_schedules.append(new_schedule)
+                    print(f"  ✅ Created schedule for {current_date}")
+                else:
+                    print(f"  ⚠️ Skipping {current_date} - conflict detected")
+                
+                # Move to next week
+                current_date += timedelta(days=7)
+            
+            print(f"✅ Created {len(created_schedules)} recurring schedules")
+            
+        else:
+            # Create single non-recurring schedule
+            print(f"📅 Creating single schedule for {schedule_date}")
+            
+            new_schedule = await prisma.emploitemps.create(
+                data={
+                    "date": start_datetime,
+                    "heure_debut": start_datetime,
+                    "heure_fin": end_datetime,
+                    "id_salle": schedule_data.room_id,
+                    "id_matiere": schedule_data.subject_id,
+                    "id_groupe": schedule_data.group_id,
+                    "id_enseignant": schedule_data.teacher_id,
+                    "is_recurring": False
+                }
+            )
+            created_schedules.append(new_schedule)
         
         # Send notification to teacher
         teacher_user = await prisma.utilisateur.find_first(
@@ -674,22 +705,39 @@ async def create_schedule(
         )
         
         if teacher_user:
+            recurrence_msg = f"pour tout le semestre ({len(created_schedules)} séances)" if len(created_schedules) > 1 else ""
             await create_notification(
                 prisma=prisma,
                 user_id=teacher_user.id,
                 notification_type="SCHEDULE_CREATED",
                 title="Nouvel emploi du temps",
-                message=f"Un nouvel emploi du temps a été créé pour {subject.nom} le {schedule_date.strftime('%d/%m/%Y')} de {start_time_obj.strftime('%H:%M')} à {end_time_obj.strftime('%H:%M')} - Salle {room.code}",
-                related_id=new_schedule.id
+                message=f"Un emploi du temps a été créé pour {subject.nom} le {schedule_date.strftime('%A')} de {start_time_obj.strftime('%H:%M')} à {end_time_obj.strftime('%H:%M')} - Salle {room.code} {recurrence_msg}",
+                related_id=created_schedules[0].id if created_schedules else None
             )
             print(f"✅ Notification sent to teacher {teacher_user.email}")
         
-        return new_schedule
+        # Return the first schedule with relations
+        if created_schedules:
+            return await prisma.emploitemps.find_unique(
+                where={"id": created_schedules[0].id},
+                include={
+                    "salle": True,
+                    "matiere": True,
+                    "groupe": True,
+                    "enseignant": True
+                }
+            )
         
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No schedules were created"
+        )
+        
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Schedule creation error: {e}")
         print(f"   Schedule data: {schedule_data}")
-        print(f"   Date: {schedule_date}, Start: {start_datetime}, End: {end_datetime}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create schedule: {str(e)}"

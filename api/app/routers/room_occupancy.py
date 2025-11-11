@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import logging
 
 from app.db.prisma_client import get_prisma
-from app.core.deps import require_role
+from app.core.deps import require_role, get_current_user
 
 router = APIRouter(prefix="/room-occupancy", tags=["Room Occupancy"])
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ async def get_rooms_occupancy(
     room_type: Optional[str] = Query(None, description="Filter by room type"),
     building: Optional[str] = Query(None, description="Filter by building name"),
     prisma: Prisma = Depends(get_prisma),
-    current_user = Depends(require_role(["DEPARTMENT_HEAD", "ADMIN"]))
+    current_user = Depends(get_current_user)  # Allow all authenticated users
 ):
     try:
         today = datetime.now().date()
@@ -56,11 +56,11 @@ async def get_rooms_occupancy(
         )
         
         time_slots = [
-            {"id": "slot1", "start": "08:10", "end": "09:50"},
-            {"id": "slot2", "start": "10:00", "end": "11:40"},
-            {"id": "slot3", "start": "11:50", "end": "13:30"},
-            {"id": "slot4", "start": "14:30", "end": "16:10"},
-            {"id": "slot5", "start": "16:10", "end": "17:50"}
+            {"id": "slot1", "start": "08:30", "end": "10:00"},
+            {"id": "slot2", "start": "10:10", "end": "11:40"},
+            {"id": "slot3", "start": "11:50", "end": "13:20"},
+            {"id": "slot4", "start": "14:30", "end": "16:00"},
+            {"id": "slot5", "start": "16:10", "end": "17:40"}
         ]
         
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -83,21 +83,16 @@ async def get_rooms_occupancy(
                     
                     day_name = days[day_index]
                     
+                    # Get schedule start time (HH:MM format)
                     start_time = schedule.heure_debut
-                    hour = start_time.hour
-                    minute = start_time.minute
+                    schedule_start = f"{start_time.hour:02d}:{start_time.minute:02d}"
                     
+                    # Match schedule to time slot based on start time
                     time_slot = None
-                    if hour == 8 and minute == 10:
-                        time_slot = "slot1"
-                    elif hour == 10 and minute == 0:
-                        time_slot = "slot2"
-                    elif hour == 11 and minute == 50:
-                        time_slot = "slot3"
-                    elif hour == 14 and minute == 30:
-                        time_slot = "slot4"
-                    elif hour == 16 and minute == 10:
-                        time_slot = "slot5"
+                    for slot in time_slots:
+                        if schedule_start == slot["start"]:
+                            time_slot = slot["id"]
+                            break
                     
                     if time_slot:
                         teacher_name = "Non assigné"
@@ -155,7 +150,7 @@ async def get_rooms_occupancy(
 async def get_occupancy_statistics(
     week_offset: int = Query(0, description="Week offset from current week"),
     prisma: Prisma = Depends(get_prisma),
-    current_user = Depends(require_role(["DEPARTMENT_HEAD", "ADMIN"]))
+    current_user = Depends(get_current_user)  # Allow all authenticated users
 ):
     try:
         today = datetime.now().date()

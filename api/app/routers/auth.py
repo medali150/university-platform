@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer
 from typing import List, Optional
 from prisma import Prisma
 from datetime import timedelta
+from pydantic import BaseModel, EmailStr
 
 from app.db.prisma_client import get_prisma
 from app.schemas.user import UserCreate, UserResponse, UserLogin, Token
@@ -11,6 +12,18 @@ from app.core.jwt import create_access_token, create_refresh_token
 from app.core.deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+# ============================================================================
+# PYDANTIC MODELS
+# ============================================================================
+
+class ForgotPasswordRequest(BaseModel):
+    email: str  # Changed from EmailStr to str to avoid validation issues
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 @router.post("/register", response_model=UserResponse)
@@ -286,6 +299,15 @@ async def login(user_credentials: UserLogin, prisma: Prisma = Depends(get_prisma
     access_token = create_access_token(data={"sub": user.id})
     refresh_token = create_refresh_token(data={"sub": user.id})
     
+    # Fetch chef_dept_id if user is a department head
+    chef_dept_id = None
+    if user.role == "DEPARTMENT_HEAD":
+        dept_head = await prisma.chefdepartement.find_first(
+            where={"id_utilisateur": user.id}
+        )
+        if dept_head:
+            chef_dept_id = dept_head.id
+    
     # Simple response without complex models
     return {
         "access_token": access_token,
@@ -297,6 +319,9 @@ async def login(user_credentials: UserLogin, prisma: Prisma = Depends(get_prisma
             "prenom": user.prenom,
             "nom": user.nom,
             "role": user.role,
+            "enseignant_id": user.enseignant_id,  # Already on Utilisateur model
+            "etudiant_id": user.etudiant_id,      # Already on Utilisateur model
+            "chef_dept_id": chef_dept_id,
             # Admin panel compatibility
             "firstName": user.prenom,
             "lastName": user.nom,
@@ -418,4 +443,241 @@ async def get_groups(specialty_id: Optional[str] = Query(None), prisma: Prisma =
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching groups: {str(e)}"
+        )
+
+
+# ============================================================================
+# PASSWORD RESET
+# ============================================================================
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    prisma: Prisma = Depends(get_prisma)
+):
+    """
+    Send password reset email
+    
+    Generates a unique token and sends reset link via email
+    """
+    import secrets
+    from datetime import datetime, timedelta
+    
+    try:
+        # Find user by email
+        user = await prisma.utilisateur.find_unique(
+            where={"email": request.email}
+        )
+        
+        # Always return success (security: don't reveal if email exists)
+        if not user:
+            return {
+                "message": "If the email exists, a password reset link has been sent",
+                "success": True
+            }
+        
+        # Generate secure random token
+        reset_token = secrets.token_urlsafe(32)
+        
+        # Token expires in 1 hour
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+        
+        # Delete any existing unused tokens for this user
+        await prisma.passwordresettoken.delete_many(
+            where={
+                "userId": user.id,
+                "used": False
+            }
+        )
+        
+        # Create new reset token
+        await prisma.passwordresettoken.create(
+            data={
+                "token": reset_token,
+                "userId": user.id,
+                "email": request.email,
+                "expiresAt": expires_at,
+                "used": False
+            }
+        )
+        
+        # Send password reset email
+        reset_link = f"http://localhost:3000/reset-password?token={reset_token}"
+        
+        try:
+            from app.services.email_service import send_password_reset_email
+            
+            # Send the email
+            await send_password_reset_email(
+                to_email=request.email,
+                user_name=f"{user.prenom} {user.nom}",
+                reset_token=reset_token,
+                reset_link=reset_link
+            )
+            
+            print(f"\n{'='*60}")
+            print(f"✅ PASSWORD RESET EMAIL SENT")
+            print(f"{'='*60}")
+            print(f"User: {user.prenom} {user.nom} ({request.email})")
+            print(f"Email sent successfully!")
+            print(f"{'='*60}\n")
+            
+        except Exception as email_error:
+            # If email fails, still print to console as fallback
+            print(f"\n{'='*60}")
+            print(f"⚠️ EMAIL SENDING FAILED - FALLBACK TO CONSOLE")
+            print(f"{'='*60}")
+            print(f"User: {user.prenom} {user.nom} ({request.email})")
+            print(f"Reset Link: {reset_link}")
+            print(f"Token expires in 1 hour")
+            print(f"Error: {email_error}")
+            print(f"{'='*60}\n")
+        
+        return {
+            "message": "If the email exists, a password reset link has been sent",
+            "success": True
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in forgot password: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred processing your request"
+        )
+
+
+@router.get("/reset-password/{token}")
+async def verify_reset_token(
+    token: str,
+    prisma: Prisma = Depends(get_prisma)
+):
+    """
+    Verify if reset token is valid
+    
+    Used by frontend to check token before showing reset form
+    """
+    from datetime import datetime, timezone
+    
+    try:
+        # Find token
+        reset_token = await prisma.passwordresettoken.find_unique(
+            where={"token": token},
+            include={"utilisateur": True}
+        )
+        
+        if not reset_token:
+            raise HTTPException(
+                status_code=404,
+                detail="Invalid or expired reset token"
+            )
+        
+        # Check if already used
+        if reset_token.used:
+            raise HTTPException(
+                status_code=400,
+                detail="This reset link has already been used"
+            )
+        
+        # Check if expired (use timezone-aware datetime)
+        now = datetime.now(timezone.utc)
+        if now > reset_token.expiresAt:
+            raise HTTPException(
+                status_code=400,
+                detail="This reset link has expired"
+            )
+        
+        return {
+            "valid": True,
+            "email": reset_token.email,
+            "user": {
+                "nom": reset_token.utilisateur.nom,
+                "prenom": reset_token.utilisateur.prenom
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error verifying token: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred verifying the token"
+        )
+
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    prisma: Prisma = Depends(get_prisma)
+):
+    """
+    Reset password using token
+    
+    Validates token and updates user password
+    """
+    from datetime import datetime, timezone
+    
+    try:
+        # Validate password strength
+        if len(request.new_password) < 6:
+            raise HTTPException(
+                status_code=400,
+                detail="Password must be at least 6 characters long"
+            )
+        
+        # Find and validate token
+        reset_token = await prisma.passwordresettoken.find_unique(
+            where={"token": request.token}
+        )
+        
+        if not reset_token:
+            raise HTTPException(
+                status_code=404,
+                detail="Invalid or expired reset token"
+            )
+        
+        # Check if already used
+        if reset_token.used:
+            raise HTTPException(
+                status_code=400,
+                detail="This reset link has already been used"
+            )
+        
+        # Check if expired (use timezone-aware datetime)
+        now = datetime.now(timezone.utc)
+        if now > reset_token.expiresAt:
+            raise HTTPException(
+                status_code=400,
+                detail="This reset link has expired"
+            )
+        
+        # Hash new password
+        hashed_password = hash_password(request.new_password)
+        
+        # Update user password
+        await prisma.utilisateur.update(
+            where={"id": reset_token.userId},
+            data={"mdp_hash": hashed_password}
+        )
+        
+        # Mark token as used
+        await prisma.passwordresettoken.update(
+            where={"id": reset_token.id},
+            data={"used": True}
+        )
+        
+        print(f"✅ Password reset successful for user: {reset_token.email}")
+        
+        return {
+            "message": "Password has been reset successfully",
+            "success": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error resetting password: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred resetting the password"
         )

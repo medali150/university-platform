@@ -235,9 +235,9 @@ async def get_department_teachers(
             )
         
         # Find the department head record to get their department
-        dept_head = await prisma.departmenthead.find_unique(
-            where={"userId": current_user.id},
-            include={"department": True}
+        dept_head = await prisma.chefdepartement.find_unique(
+            where={"id_utilisateur": current_user.id},
+            include={"departement": True}
         )
         
         if not dept_head:
@@ -247,29 +247,28 @@ async def get_department_teachers(
             )
         
         # Get teachers in the department
-        teachers = await prisma.teacher.find_many(
+        teachers = await prisma.enseignant.find_many(
             where={
-                "departmentId": dept_head.departmentId
+                "id_departement": dept_head.id_departement
             },
             include={
-                "user": True,
-                "department": True
+                "utilisateur": True,
+                "departement": True
             }
         )
         
         # Format the response
         formatted_teachers = []
         for teacher in teachers:
+            # Skip teachers without user account
+            if not teacher.utilisateur:
+                continue
+                
             formatted_teachers.append({
-                "id": teacher.user.id,
-                "firstName": teacher.user.firstName,
-                "lastName": teacher.user.lastName,
-                "email": teacher.user.email,
-                "role": teacher.user.role,
-                "teacherInfo": {
-                    "id": teacher.id,
-                    "department": teacher.department.name if teacher.department else None
-                }
+                "id": teacher.id,  # Use teacher.id not utilisateur.id
+                "nom": teacher.nom or teacher.utilisateur.nom,
+                "prenom": teacher.prenom or teacher.utilisateur.prenom,
+                "email": teacher.email or teacher.utilisateur.email
             })
         
         return formatted_teachers

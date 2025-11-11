@@ -17,7 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Building,
-  Newspaper
+  Newspaper,
+  GraduationCap
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -29,6 +30,7 @@ interface SidebarProps {
 
 const studentNavItems = [
   { href: '/dashboard/student', label: 'Dashboard', icon: Home },
+  { href: '/classroom/courses', label: 'Smart Classroom', icon: GraduationCap },
   { href: '/dashboard/student/timetable', label: 'Timetable', icon: Calendar },
   { href: '/dashboard/events', label: 'Événements', icon: Newspaper },
   { href: '/dashboard/student/profile', label: 'Mon Profil', icon: Users },
@@ -38,6 +40,7 @@ const studentNavItems = [
 
 const teacherNavItems = [
   { href: '/dashboard/teacher', label: 'Dashboard', icon: Home },
+  { href: '/classroom/courses', label: 'Smart Classroom', icon: GraduationCap },
   { href: '/dashboard/teacher/profile', label: 'Mon Profil', icon: Users },
   { href: '/dashboard/teacher/timetable', label: 'Timetable', icon: Calendar },
   { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
@@ -47,6 +50,7 @@ const teacherNavItems = [
 
 const departmentHeadNavItems = [
   { href: '/dashboard/department-head', label: 'Dashboard', icon: Home },
+  { href: '/classroom/courses', label: 'Smart Classroom', icon: GraduationCap },
   { href: '/dashboard/department-head/timetable', label: 'Emploi du Temps', icon: Calendar },
   { href: '/dashboard/events', label: 'Événements', icon: Newspaper },
   { href: '/dashboard/department-head/classes', label: 'Classes', icon: Users },

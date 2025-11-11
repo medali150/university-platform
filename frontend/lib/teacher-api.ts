@@ -38,6 +38,11 @@ export interface TeacherScheduleResponse {
     start: string;
     end: string;
   };
+  timetable?: any; // Timetable grouped by day
+  week_start?: string;
+  week_end?: string;
+  total_hours?: number;
+  note?: string;
 }
 
 export interface TeacherProfile {
@@ -289,7 +294,7 @@ export class TeacherAPI {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
 
-    const url = `${BASE_URL}/teacher/schedule${params.toString() ? `?${params}` : ''}`;
+    const url = `${BASE_URL}/teacher/timetable${params.toString() ? `?${params}` : ''}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -302,17 +307,92 @@ export class TeacherAPI {
 
     const data = await response.json();
     
-    // Ensure proper date formatting for all schedules
-    if (data.schedules) {
-      data.schedules = data.schedules.map((schedule: any) => ({
-        ...schedule,
-        date: new Date(schedule.date).toISOString().split('T')[0],
-        heure_debut: schedule.heure_debut.substring(0, 5),
-        heure_fin: schedule.heure_fin.substring(0, 5)
-      }));
+    // Transform the response to match expected format
+    const schedules = Array.isArray(data.schedules) ? data.schedules : 
+                     Array.isArray(data) ? data : [];
+    
+    if (schedules.length > 0) {
+      // Format schedules properly
+      const formattedSchedules = schedules.map((schedule: any) => {
+        // Extract time from datetime
+        const heureDebut = schedule.heure_debut instanceof Date 
+          ? schedule.heure_debut.toISOString().substring(11, 16)
+          : new Date(schedule.heure_debut).toISOString().substring(11, 16);
+        
+        const heureFin = schedule.heure_fin instanceof Date
+          ? schedule.heure_fin.toISOString().substring(11, 16)
+          : new Date(schedule.heure_fin).toISOString().substring(11, 16);
+        
+        return {
+          ...schedule,
+          date: new Date(schedule.date).toISOString().split('T')[0],
+          heure_debut: heureDebut,
+          heure_fin: heureFin
+        };
+      });
+
+      // Group by day for timetable view
+      const timetable: any = {};
+      const daysOfWeek = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+      
+      formattedSchedules.forEach((schedule: any) => {
+        const date = new Date(schedule.date);
+        const dayIndex = date.getDay();
+        const dayName = daysOfWeek[dayIndex === 0 ? 6 : dayIndex - 1]; // Adjust for Sunday
+        
+        if (!timetable[dayName]) {
+          timetable[dayName] = [];
+        }
+        
+        timetable[dayName].push({
+          id: schedule.id,
+          start_time: schedule.heure_debut,
+          end_time: schedule.heure_fin,
+          matiere: schedule.matiere,
+          groupe: schedule.groupe,
+          salle: schedule.salle,
+          date: schedule.date
+        });
+      });
+
+      // Return in expected format
+      return {
+        timetable,
+        week_start: data.start_date,
+        week_end: data.end_date,
+        total_hours: formattedSchedules.length * 1.5, // Assuming 1.5 hours per session
+        teacher_info: {
+          id: '',
+          nom: '',
+          prenom: '',
+          email: ''
+        },
+        schedules: formattedSchedules,
+        date_range: {
+          start: data.start_date,
+          end: data.end_date
+        }
+      };
     }
     
-    return data;
+    // Return empty timetable if no schedules
+    return {
+      timetable: {},
+      week_start: data.start_date || '',
+      week_end: data.end_date || '',
+      total_hours: 0,
+      teacher_info: {
+        id: '',
+        nom: '',
+        prenom: '',
+        email: ''
+      },
+      schedules: [],
+      date_range: {
+        start: data.start_date || '',
+        end: data.end_date || ''
+      }
+    };
   }
 
   /**

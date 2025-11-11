@@ -429,6 +429,22 @@ class ApiClient {
     })
   }
 
+  // Teacher Timetable
+  async getTeacherTimetable(params?: { start_date?: string; end_date?: string }): Promise<any> {
+    const queryString = params 
+      ? `?${new URLSearchParams(params as Record<string, string>).toString()}` 
+      : ''
+    return this.request<any>(`/teacher/timetable${queryString}`)
+  }
+
+  // Student Schedule
+  async getStudentSchedule(params?: { start_date?: string; end_date?: string }): Promise<any> {
+    const queryString = params 
+      ? `?${new URLSearchParams(params as Record<string, string>).toString()}` 
+      : ''
+    return this.request<any>(`/student/schedule${queryString}`)
+  }
+
   // Absences - New absence management system
   async getAbsences(query: {
     page?: number;

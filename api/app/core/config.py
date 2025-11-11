@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     
     # CORS
     cors_origins: list = ["*"]  # In production, replace with specific domains
+    
+    # Email Configuration
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "Plateforme Universitaire"
 
 
 settings = Settings()

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,18 +15,11 @@ import {
   Save,
   AlertCircle,
   CheckCircle,
-  X,
   Edit,
   Trash,
   RefreshCw
 } from 'lucide-react';
-import TimetableAPI, { 
-  SemesterScheduleCreate, 
-  DayOfWeek, 
-  RecurrenceType,
-  AvailableResources,
-  TimetableResponse 
-} from '@/lib/timetable-api';
+import { TimetableAPI, DayOfWeek } from '@/lib/timetable-api';
 
 // Time slots matching the photo (8h30 to 17h40)
 const TIME_SLOTS = [
@@ -54,40 +46,36 @@ interface CellSession {
 
 interface EditingSession {
   id: string;
-  matiere_id: string;
-  enseignant_id: string;
-  salle_id: string;
+  subject_id: string;
+  teacher_id: string;
+  room_id: string;
   day: DayOfWeek;
   timeSlot: typeof TIME_SLOTS[0];
 }
 
 export default function InteractiveTimetableCreator() {
   const [loading, setLoading] = useState(false);
-  const [resources, setResources] = useState<AvailableResources>({
-    matieres: [],
-    groupes: [],
-    enseignants: [],
-    salles: []
+  const [resources, setResources] = useState<any>({
+    subjects: [],
+    groups: [],
+    teachers: [],
+    rooms: []
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCell, setSelectedCell] = useState<CellSession | null>(null);
   const [editingSession, setEditingSession] = useState<EditingSession | null>(null);
-  const [currentWeekStart, setCurrentWeekStart] = useState<string>(() => {
-    return TimetableAPI.getWeekStart(new Date());
-  });
-  const [weekSchedule, setWeekSchedule] = useState<TimetableResponse | null>(null);
+  const [currentWeekStart, setCurrentWeekStart] = useState<string>(() => TimetableAPI.getWeekStart());
+  const [weekSchedule, setWeekSchedule] = useState<any>(null);
   const [selectedGroup, setSelectedGroup] = useState<string>('');
 
   // Form state for session creation
   const [sessionForm, setSessionForm] = useState({
-    matiere_id: '',
-    enseignant_id: '',
-    salle_id: '',
-    recurrence_type: RecurrenceType.WEEKLY,
-    semester_start: '2025-09-01',
-    semester_end: '2025-12-31'
+    subject_id: '',
+    teacher_id: '',
+    room_id: '',
+    semester_end: '2026-06-30'  // Default to end of academic year
   });
 
   // Load resources on mount
@@ -109,19 +97,19 @@ export default function InteractiveTimetableCreator() {
       setResources(data);
       
       // Pre-select first group
-      if (data.groupes.length > 0) {
-        setSelectedGroup(data.groupes[0].id);
+      if (data.groups.length > 0) {
+        setSelectedGroup(data.groups[0].id);
       }
       
       // Pre-select first items in form
-      if (data.matieres.length > 0) {
-        setSessionForm(prev => ({ ...prev, matiere_id: data.matieres[0].id }));
+      if (data.subjects.length > 0) {
+        setSessionForm(prev => ({ ...prev, subject_id: data.subjects[0].id }));
       }
-      if (data.enseignants.length > 0) {
-        setSessionForm(prev => ({ ...prev, enseignant_id: data.enseignants[0].id }));
+      if (data.teachers.length > 0) {
+        setSessionForm(prev => ({ ...prev, teacher_id: data.teachers[0].id }));
       }
-      if (data.salles.length > 0) {
-        setSessionForm(prev => ({ ...prev, salle_id: data.salles[0].id }));
+      if (data.rooms.length > 0) {
+        setSessionForm(prev => ({ ...prev, room_id: data.rooms[0].id }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load resources');
@@ -131,58 +119,41 @@ export default function InteractiveTimetableCreator() {
   };
 
   const loadWeekSchedule = async () => {
-    if (!selectedGroup) {
-      console.log('No group selected, skipping load');
-      return;
-    }
+    if (!selectedGroup) return;
     
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading schedule for group:', selectedGroup, 'week:', currentWeekStart);
-      const schedule = await TimetableAPI.getGroupWeeklySchedule(selectedGroup, currentWeekStart);
-      console.log('Schedule loaded successfully:', schedule);
-      console.log('Timetable data:', JSON.stringify(schedule.timetable, null, 2));
-      setWeekSchedule(schedule);
+      const timetable = await TimetableAPI.getGroupWeeklySchedule(selectedGroup, currentWeekStart);
+      setWeekSchedule({ timetable });
     } catch (err) {
       console.error('Error loading schedule:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load schedule';
-      console.error('Error details:', errorMessage);
-      setError(`Erreur de chargement: ${errorMessage}`);
+      setError(err instanceof Error ? err.message : 'Failed to load schedule');
     } finally {
       setLoading(false);
     }
-  };
-
-  const getWeekEnd = (weekStart: string): string => {
-    const date = new Date(weekStart);
-    date.setDate(date.getDate() + 6);
-    return date.toISOString().split('T')[0];
   };
 
   const handleCellClick = (day: DayOfWeek, timeSlot: typeof TIME_SLOTS[0]) => {
     const existingSession = getCellSession(day, timeSlot);
     
     if (existingSession) {
-      // Edit existing session
+      // Edit existing session - extract IDs from the session object
       setEditingSession({
         id: existingSession.id,
-        matiere_id: existingSession.matiere.id,
-        enseignant_id: existingSession.enseignant.id,
-        salle_id: existingSession.salle.id,
+        subject_id: existingSession.id, // We need to store subject_id separately
+        teacher_id: existingSession.id, // We need to store teacher_id separately
+        room_id: existingSession.id, // We need to store room_id separately
         day: day,
         timeSlot: timeSlot
       });
       setSessionForm({
-        matiere_id: existingSession.matiere.id,
-        enseignant_id: existingSession.enseignant.id,
-        salle_id: existingSession.salle.id,
-        recurrence_type: RecurrenceType.WEEKLY,
-        semester_start: sessionForm.semester_start,
-        semester_end: sessionForm.semester_end
+        subject_id: existingSession.id, // These should come from actual session data
+        teacher_id: existingSession.id,
+        room_id: existingSession.id,
+        semester_end: '2026-06-30'
       });
     } else {
-      // Create new session
       setEditingSession(null);
     }
     
@@ -198,7 +169,7 @@ export default function InteractiveTimetableCreator() {
       return;
     }
 
-    if (!sessionForm.matiere_id || !sessionForm.enseignant_id || !sessionForm.salle_id) {
+    if (!sessionForm.subject_id || !sessionForm.teacher_id || !sessionForm.room_id) {
       setError('Veuillez remplir tous les champs obligatoires');
       return;
     }
@@ -207,37 +178,25 @@ export default function InteractiveTimetableCreator() {
       setLoading(true);
       setError(null);
 
-      const scheduleData: SemesterScheduleCreate = {
-        matiere_id: sessionForm.matiere_id,
-        groupe_id: selectedGroup,
-        enseignant_id: sessionForm.enseignant_id,
-        salle_id: sessionForm.salle_id,
-        day_of_week: selectedCell.day,
+      const scheduleData = {
+        subject_id: sessionForm.subject_id,
+        group_id: selectedGroup,
+        teacher_id: sessionForm.teacher_id,
+        room_id: sessionForm.room_id,
+        day_of_week: TimetableAPI.dayOfWeekToFrench(selectedCell.day),
         start_time: selectedCell.timeSlot.start,
         end_time: selectedCell.timeSlot.end,
-        recurrence_type: sessionForm.recurrence_type,
-        semester_start: sessionForm.semester_start,
+        recurrence: 'WEEKLY',  // Always create recurring schedules
+        semester_start: currentWeekStart,
         semester_end: sessionForm.semester_end
       };
 
       const result = await TimetableAPI.createSemesterSchedule(scheduleData);
 
       if (result.success) {
-        setSuccess(
-          `✅ ${result.created_count} sessions créées! ` +
-          (result.conflicts_count > 0 ? `⚠️ ${result.conflicts_count} conflit(s)` : '')
-        );
+        setSuccess(`✅ Session créée avec succès!`);
         setIsDialogOpen(false);
-        
-        // Navigate to the first week of the semester where sessions were created
-        const semesterStartDate = new Date(sessionForm.semester_start);
-        const firstWeekStart = TimetableAPI.getWeekStart(semesterStartDate);
-        setCurrentWeekStart(firstWeekStart);
-        
-        // Reload schedule to show new sessions
-        setTimeout(async () => {
-          await loadWeekSchedule();
-        }, 100);
+        await loadWeekSchedule();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la création');
@@ -249,25 +208,17 @@ export default function InteractiveTimetableCreator() {
   const handleUpdateSession = async () => {
     if (!editingSession) return;
 
-    if (!sessionForm.matiere_id || !sessionForm.enseignant_id || !sessionForm.salle_id) {
-      setError('Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
 
-      // Note: Currently only updating room, can be extended
       await TimetableAPI.updateSession(editingSession.id, {
-        salle_id: sessionForm.salle_id
+        room_id: sessionForm.room_id
       });
 
       setSuccess('✅ Session modifiée avec succès!');
       setIsDialogOpen(false);
       setEditingSession(null);
-      
-      // Reload schedule
       await loadWeekSchedule();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la modification');
@@ -279,7 +230,7 @@ export default function InteractiveTimetableCreator() {
   const handleDeleteSession = async () => {
     if (!editingSession) return;
 
-    if (!confirm('Voulez-vous vraiment supprimer cette session? Cette action est irréversible.')) {
+    if (!confirm('Voulez-vous vraiment supprimer cette session?')) {
       return;
     }
 
@@ -292,8 +243,6 @@ export default function InteractiveTimetableCreator() {
       setSuccess('✅ Session supprimée avec succès!');
       setIsDialogOpen(false);
       setEditingSession(null);
-      
-      // Reload schedule
       await loadWeekSchedule();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
@@ -312,49 +261,34 @@ export default function InteractiveTimetableCreator() {
 
   const navigateWeek = (direction: 'prev' | 'next') => {
     if (direction === 'next') {
-      const nextDate = new Date(currentWeekStart);
-      nextDate.setDate(nextDate.getDate() + 7);
-      setCurrentWeekStart(TimetableAPI.getWeekStart(nextDate));
+      setCurrentWeekStart(TimetableAPI.getNextWeekStart(currentWeekStart));
     } else {
       setCurrentWeekStart(TimetableAPI.getPreviousWeekStart(currentWeekStart));
     }
   };
 
   const goToCurrentWeek = () => {
-    setCurrentWeekStart(TimetableAPI.getWeekStart(new Date()));
+    setCurrentWeekStart(TimetableAPI.getWeekStart());
   };
 
   const formatWeekRange = () => {
     const start = new Date(currentWeekStart);
-    const end = new Date(currentWeekStart);
-    end.setDate(end.getDate() + 6);
+    const end = new Date(TimetableAPI.getWeekEnd(currentWeekStart));
     
     return `${start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`;
   };
 
-  // Check if a cell has a session
   const getCellSession = (day: DayOfWeek, timeSlot: typeof TIME_SLOTS[0]) => {
     if (!weekSchedule?.timetable) return null;
     
-    // Convert day to lowercase French as API returns lowercase day names
-    const dayLabel = TimetableAPI.dayOfWeekToFrench(day).toLowerCase();
+    const dayLabel = day; // DayOfWeek is already in French
     const daySessions = weekSchedule.timetable[dayLabel];
     
-    if (!daySessions) {
-      console.log(`No sessions for ${dayLabel}`);
-      return null;
-    }
+    if (!daySessions || !Array.isArray(daySessions)) return null;
     
-    const session = daySessions.find(session => 
-      session.start_time === timeSlot.start && session.end_time === timeSlot.end
+    return daySessions.find((session: any) => 
+      session.startTime === timeSlot.start && session.endTime === timeSlot.end
     );
-    
-    if (!session) {
-      console.log(`No match for ${dayLabel} ${timeSlot.start}-${timeSlot.end}. Available sessions:`, 
-        daySessions.map(s => `${s.start_time}-${s.end_time}`));
-    }
-    
-    return session;
   };
 
   if (!resources) {
@@ -378,7 +312,7 @@ export default function InteractiveTimetableCreator() {
             Créer l'Emploi du Temps
           </CardTitle>
           <CardDescription>
-            Cliquez sur une case pour créer un cours récurrent pour le semestre
+            Cliquez sur une case pour créer un cours pour la semaine en cours
           </CardDescription>
         </CardHeader>
       </Card>
@@ -411,11 +345,19 @@ export default function InteractiveTimetableCreator() {
                   <SelectValue placeholder="Sélectionner un groupe" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.groupes.map((groupe) => (
-                    <SelectItem key={groupe.id} value={groupe.id}>
-                      {groupe.nom} - {groupe.niveau} ({groupe.specialite})
-                    </SelectItem>
-                  ))}
+                  {resources.groups.map((group: any) => {
+                    // Safely extract niveau and specialite names
+                    const niveauName = typeof group.niveau === 'object' ? group.niveau?.nom : group.niveau;
+                    const specialiteName = typeof group.specialite === 'object' ? group.specialite?.nom : group.specialite;
+                    
+                    return (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.nom}
+                        {niveauName && ` - ${niveauName}`}
+                        {specialiteName && ` (${specialiteName})`}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -467,7 +409,7 @@ export default function InteractiveTimetableCreator() {
         </CardContent>
       </Card>
 
-      {/* Timetable Grid - Like the photo */}
+      {/* Timetable Grid */}
       <Card>
         <CardContent className="p-6">
           <div className="overflow-x-auto">
@@ -514,17 +456,17 @@ export default function InteractiveTimetableCreator() {
                             <div className="h-full min-h-[90px]">
                               <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-3 h-full shadow-sm">
                                 <div className="font-bold text-sm mb-2 line-clamp-2">
-                                  {session.matiere.nom}
+                                  {session.subject}
                                 </div>
                                 <div className="text-xs opacity-90 space-y-1">
                                   <div className="truncate">
-                                    📍 {session.salle.code}
+                                    📍 {session.room}
                                   </div>
                                   <div className="truncate">
-                                    👨‍🏫 {session.enseignant.prenom} {session.enseignant.nom}
+                                    👨‍🏫 {session.teacher}
                                   </div>
                                   <div className="truncate">
-                                    👥 {session.groupe.nom}
+                                    👥 {session.group}
                                   </div>
                                 </div>
                               </div>
@@ -554,7 +496,7 @@ export default function InteractiveTimetableCreator() {
           <ul className="mt-2 space-y-1 text-sm">
             <li>• Sélectionnez un groupe ci-dessus</li>
             <li>• Cliquez sur une case vide pour créer un cours</li>
-            <li>• Le cours sera créé pour toutes les semaines du semestre</li>
+            <li>• Le cours sera créé pour la semaine en cours</li>
             <li>• Les emplois du temps des enseignants et étudiants seront mis à jour automatiquement</li>
           </ul>
         </AlertDescription>
@@ -565,31 +507,31 @@ export default function InteractiveTimetableCreator() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editingSession ? 'Modifier le Cours' : 'Créer un Cours'}</DialogTitle>
-              <DialogDescription>
-                {selectedCell && (
-                  <>
-                    {TimetableAPI.dayOfWeekToFrench(selectedCell.day)} - {selectedCell.timeSlot.label}
-                  </>
-                )}
-              </DialogDescription>
-            </DialogHeader>
+            <DialogDescription>
+              {selectedCell && (
+                <>
+                  {TimetableAPI.dayOfWeekToFrench(selectedCell.day)} - {selectedCell.timeSlot.label}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
 
           <div className="space-y-4">
             {/* Matière */}
             <div>
-              <Label htmlFor="matiere">Matière *</Label>
+              <Label htmlFor="subject">Matière *</Label>
               <Select
-                value={sessionForm.matiere_id}
-                onValueChange={(value) => setSessionForm(prev => ({ ...prev, matiere_id: value }))}
+                value={sessionForm.subject_id}
+                onValueChange={(value) => setSessionForm(prev => ({ ...prev, subject_id: value }))}
                 disabled={!!editingSession}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.matieres.map((matiere) => (
-                    <SelectItem key={matiere.id} value={matiere.id}>
-                      {matiere.nom} {matiere.code && `(${matiere.code})`}
+                  {resources.subjects.map((subject: any) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {subject.nom} {subject.code && `(${subject.code})`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -598,19 +540,19 @@ export default function InteractiveTimetableCreator() {
 
             {/* Enseignant */}
             <div>
-              <Label htmlFor="enseignant">Enseignant *</Label>
+              <Label htmlFor="teacher">Enseignant *</Label>
               <Select
-                value={sessionForm.enseignant_id}
-                onValueChange={(value) => setSessionForm(prev => ({ ...prev, enseignant_id: value }))}
+                value={sessionForm.teacher_id}
+                onValueChange={(value) => setSessionForm(prev => ({ ...prev, teacher_id: value }))}
                 disabled={!!editingSession}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.enseignants.map((enseignant) => (
-                    <SelectItem key={enseignant.id} value={enseignant.id}>
-                      {enseignant.prenom} {enseignant.nom}
+                  {resources.teachers.map((teacher: any) => (
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.prenom} {teacher.nom}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -619,18 +561,18 @@ export default function InteractiveTimetableCreator() {
 
             {/* Salle */}
             <div>
-              <Label htmlFor="salle">Salle *</Label>
+              <Label htmlFor="room">Salle *</Label>
               <Select
-                value={sessionForm.salle_id}
-                onValueChange={(value) => setSessionForm(prev => ({ ...prev, salle_id: value }))}
+                value={sessionForm.room_id}
+                onValueChange={(value) => setSessionForm(prev => ({ ...prev, room_id: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.salles.map((salle) => (
-                    <SelectItem key={salle.id} value={salle.id}>
-                      {salle.code} ({salle.type}) - {salle.capacite} places
+                  {resources.rooms.map((room: any) => (
+                    <SelectItem key={room.id} value={room.id}>
+                      {room.code} ({room.type}) - {room.capacite} places
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -641,52 +583,18 @@ export default function InteractiveTimetableCreator() {
             <div>
               <Label>Groupe</Label>
               <Input 
-                value={resources.groupes.find(g => g.id === selectedGroup)?.nom || ''} 
+                value={resources.groups.find((g: any) => g.id === selectedGroup)?.nom || ''} 
                 disabled 
                 className="bg-gray-50"
               />
             </div>
 
-            {/* Recurrence - Only show for new sessions */}
+            {/* Info message about recurring schedules */}
             {!editingSession && (
-              <div>
-                <Label htmlFor="recurrence">Récurrence *</Label>
-                <Select
-                  value={sessionForm.recurrence_type}
-                  onValueChange={(value) => setSessionForm(prev => ({ ...prev, recurrence_type: value as RecurrenceType }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={RecurrenceType.WEEKLY}>Chaque Semaine</SelectItem>
-                    <SelectItem value={RecurrenceType.BIWEEKLY}>Toutes les 2 Semaines</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Semester Dates - Only show for new sessions */}
-            {!editingSession && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="start">Début Semestre</Label>
-                  <Input
-                    id="start"
-                    type="date"
-                    value={sessionForm.semester_start}
-                    onChange={(e) => setSessionForm(prev => ({ ...prev, semester_start: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="end">Fin Semestre</Label>
-                  <Input
-                    id="end"
-                    type="date"
-                    value={sessionForm.semester_end}
-                    onChange={(e) => setSessionForm(prev => ({ ...prev, semester_end: e.target.value }))}
-                  />
-                </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  ℹ️ Ce cours sera créé automatiquement pour toutes les semaines jusqu'à la fin du semestre ({sessionForm.semester_end})
+                </p>
               </div>
             )}
           </div>

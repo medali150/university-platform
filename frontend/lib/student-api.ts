@@ -147,10 +147,26 @@ export class StudentAPI {
    * Get university timetable (the new table format)
    */
   static async getUniversityTimetable(weekOffset: number = 0): Promise<any> {
-    const response = await fetch(`${BASE_URL}/student/timetable?week_offset=${weekOffset}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
+    // Calculate week start and end based on offset
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today.setDate(diff));
+    monday.setDate(monday.getDate() + (weekOffset * 7));
+    
+    const sunday = new Date(monday);
+    sunday.setDate(sunday.getDate() + 6);
+    
+    const startDate = monday.toISOString().split('T')[0];
+    const endDate = sunday.toISOString().split('T')[0];
+
+    const response = await fetch(
+      `${BASE_URL}/student/schedule?start_date=${startDate}&end_date=${endDate}`, 
+      {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -158,10 +174,7 @@ export class StudentAPI {
 
     const data = await response.json();
     
-    if (!data.success) {
-      throw new Error(data.error || 'Failed to load university timetable');
-    }
-
+    // Backend now returns data in the correct format
     return data;
   }
 

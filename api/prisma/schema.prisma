@@ -75,6 +75,18 @@ model Utilisateur {
   eventComments    EventComment[]   @relation("EventComments")
   eventReactions   EventReaction[]  @relation("EventReactions")
 
+  // Relations Smart Classroom
+  commentairesSoumissions CommentaireSoumission[] @relation("SubmissionComments")
+  annoncesCours           AnnonceCours[]          @relation("CourseAnnouncements")
+  commentairesAnnonces    CommentaireAnnonce[]    @relation("AnnouncementComments")
+  discussions             Discussion[]            @relation("Discussions")
+  reponsesDiscussions     ReponseDiscussion[]     @relation("DiscussionReplies")
+  chatsAI                 ChatAI[]                @relation("AIChats")
+  evenementsCalendrier    EvenementCalendrier[]   @relation("CalendarEvents")
+  
+  // Password Reset Tokens
+  passwordResetTokens     PasswordResetToken[]    @relation("PasswordResetTokens")
+
   @@index([role])
   @@index([email])
   @@index([enseignant_id])
@@ -91,6 +103,7 @@ model Departement {
   specialites     Specialite[]
   enseignants     Enseignant[]
   chefDepartement ChefDepartement?
+  cours           Cours[] // Smart Classroom courses
 
   @@map("Department")
 }
@@ -106,6 +119,7 @@ model Specialite {
   niveaux     Niveau[]
   etudiants   Etudiant[]
   matieres    Matiere[]
+  cours       Cours[] // Smart Classroom courses
 
   @@index([id_departement])
   @@map("Specialty")
@@ -121,6 +135,7 @@ model Niveau {
   specialite Specialite  @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
   groupes    Groupe[]
   etudiants  Etudiant[] // Students in this level
+  cours      Cours[] // Smart Classroom courses
 
   @@index([id_specialite])
   @@map("Level")
@@ -173,6 +188,9 @@ model Enseignant {
 
   // Grading system relation
   notes Note[]
+  
+  // Smart Classroom relations
+  cours Cours[] // Courses taught by this teacher
 
   @@index([id_departement])
   @@index([email])
@@ -202,6 +220,11 @@ model Etudiant {
   notes       Note[]
   moyennes    Moyenne[]
   releveNotes ReleveNotes[]
+  
+  // Smart Classroom relations
+  inscriptionsCours InscriptionCours[]
+  soumissionsDevoirs SoumissionDevoir[]
+  presencesCours     PresenceCours[]
 
   @@index([id_groupe])
   @@index([id_specialite])
@@ -242,6 +265,12 @@ model EmploiTemps {
   id_groupe     String
   id_enseignant String
   status        ScheduleStatus @default(PLANNED)
+  
+  // Semester information for full semester schedules
+  semester      String?        // e.g., "2024-2025-S1", "2024-2025-S2"
+  week_day      Int?           // 1=Monday, 2=Tuesday, ..., 7=Sunday
+  is_recurring  Boolean        @default(false) // true if this is a recurring schedule
+  
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -255,6 +284,8 @@ model EmploiTemps {
   @@index([id_salle])
   @@index([id_enseignant])
   @@index([id_groupe])
+  @@index([semester])
+  @@index([is_recurring])
   @@map("Schedule")
 }
 
@@ -501,4 +532,429 @@ model EventReaction {
   @@index([id_evenement])
   @@index([id_utilisateur])
   @@map("event_reactions")
+}
+
+//////////////////////////////////////
+// SMART CLASSROOM SYSTEM - MODELS
+//////////////////////////////////////
+
+// Course (Google Classroom equivalent)
+model Cours {
+  id                String    @id @default(cuid())
+  code              String    @unique // Ex: "CS101-2025-S1"
+  nom               String    // Course name
+  description       String?   @db.Text
+  imageUrl          String?   // Course banner
+  couleur           String    @default("#3B82F6") // Theme color
+  
+  // Teacher & Department
+  id_enseignant     String
+  id_departement    String?
+  id_specialite     String?
+  id_niveau         String?
+  
+  // Academic info
+  anneeAcademique   String    // "2024-2025"
+  semestre          String    // "S1", "S2"
+  capaciteMax       Int?      // Max students
+  estActif          Boolean   @default(true)
+  estPublic         Boolean   @default(false)
+  codeInvitation    String?   @unique // Join code
+  
+  // Dates
+  dateDebut         DateTime?
+  dateFin           DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  enseignant        Enseignant           @relation(fields: [id_enseignant], references: [id], onDelete: Cascade)
+  departement       Departement?         @relation(fields: [id_departement], references: [id])
+  specialite        Specialite?          @relation(fields: [id_specialite], references: [id])
+  niveau            Niveau?              @relation(fields: [id_niveau], references: [id])
+  
+  inscriptions      InscriptionCours[]
+  devoirs           Devoir[]
+  annonces          AnnonceCours[]
+  materiaux         MaterielCours[]
+  discussions       Discussion[]
+  presences         PresenceCours[]
+  
+  @@index([id_enseignant])
+  @@index([id_departement])
+  @@index([anneeAcademique, semestre])
+  @@map("courses")
+}
+
+// Course Enrollment
+model InscriptionCours {
+  id              String    @id @default(cuid())
+  id_cours        String
+  id_etudiant     String
+  statut          String    @default("active") // active, dropped, completed
+  role            String    @default("student") // student, teaching_assistant
+  dateInscription DateTime  @default(now())
+  dateRetrait     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  cours     Cours    @relation(fields: [id_cours], references: [id], onDelete: Cascade)
+  etudiant  Etudiant @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+  
+  @@unique([id_cours, id_etudiant])
+  @@index([id_cours])
+  @@index([id_etudiant])
+  @@map("course_enrollments")
+}
+
+// Assignment (Devoir)
+model Devoir {
+  id                          String    @id @default(cuid())
+  titre                       String
+  description                 String    @db.Text
+  instructions                String?   @db.Text
+  id_cours                    String
+  
+  // Assignment settings
+  type                        String    @default("assignment") // assignment, quiz, project, exam
+  points                      Int       @default(100)
+  dateCreation                DateTime  @default(now())
+  dateLimite                  DateTime  // Deadline
+  dateDisponible              DateTime? // Available from
+  
+  // Options
+  autoriserSoumissionTardive  Boolean   @default(false)
+  penaliteRetard              Int?      // Penalty percentage per day
+  attemptsMax                 Int       @default(1)
+  afficherCorrection          Boolean   @default(true)
+  
+  // AI Features
+  detectionPlagiat            Boolean   @default(true)
+  feedbackAI                  Boolean   @default(true)
+  
+  // File attachments (JSON array)
+  fichiers                    Json?     // [{url, name, type, size}]
+  
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+  
+  // Relations
+  cours       Cours                 @relation(fields: [id_cours], references: [id], onDelete: Cascade)
+  soumissions SoumissionDevoir[]
+  rubriques   Rubrique[]
+  
+  @@index([id_cours])
+  @@index([dateLimite])
+  @@map("assignments")
+}
+
+// Assignment Submission
+model SoumissionDevoir {
+  id                String    @id @default(cuid())
+  id_devoir         String
+  id_etudiant       String
+  
+  // Submission content
+  contenu           String?   @db.Text
+  fichiers          Json?     // [{url, name, type, size, uploadedAt}]
+  
+  // Status
+  statut            String    @default("submitted") // draft, submitted, graded, returned
+  tentativeNumero   Int       @default(1)
+  estEnRetard       Boolean   @default(false)
+  
+  // Grading
+  note              Float?
+  noteMax           Float?
+  feedback          String?   @db.Text
+  feedbackAI        String?   @db.Text
+  
+  // Plagiarism
+  scorePlagiat      Float?    // 0-100
+  rapportPlagiat    Json?     // Detailed report
+  
+  // Timestamps
+  dateSoumission    DateTime  @default(now())
+  dateNotation      DateTime?
+  dateRetour        DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  devoir       Devoir                     @relation(fields: [id_devoir], references: [id], onDelete: Cascade)
+  etudiant     Etudiant                   @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+  commentaires CommentaireSoumission[]
+  
+  @@unique([id_devoir, id_etudiant, tentativeNumero])
+  @@index([id_devoir])
+  @@index([id_etudiant])
+  @@index([statut])
+  @@map("assignment_submissions")
+}
+
+// Grading Rubric
+model Rubrique {
+  id          String   @id @default(cuid())
+  id_devoir   String
+  critere     String   // "Organization", "Grammar", "Content"
+  description String?  @db.Text
+  points      Int      // Points for this criterion
+  ordre       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  devoir Devoir @relation(fields: [id_devoir], references: [id], onDelete: Cascade)
+  
+  @@index([id_devoir])
+  @@map("rubrics")
+}
+
+// Submission Comment
+model CommentaireSoumission {
+  id             String            @id @default(cuid())
+  id_soumission  String
+  id_utilisateur String
+  contenu        String            @db.Text
+  estPrive       Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  
+  soumission  SoumissionDevoir @relation(fields: [id_soumission], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur       @relation("SubmissionComments", fields: [id_utilisateur], references: [id])
+  
+  @@index([id_soumission])
+  @@index([id_utilisateur])
+  @@map("submission_comments")
+}
+
+// Course Material
+model MaterielCours {
+  id                 String    @id @default(cuid())
+  titre              String
+  description        String?   @db.Text
+  id_cours           String
+  
+  // Material type
+  type               String    // "document", "video", "link", "folder"
+  
+  // File info
+  fichierUrl         String?
+  fichierNom         String?
+  fichierTaille      Int?      // bytes
+  fichierType        String?   // MIME type
+  
+  // Link info
+  lienExterne        String?
+  
+  // AI Summary
+  resumeAI           String?   @db.Text
+  transcription      String?   @db.Text // For videos
+  
+  // Organization
+  dossierParentId    String?
+  ordre              Int       @default(0)
+  
+  // Settings
+  estPublie          Boolean   @default(true)
+  estTelechargeable  Boolean   @default(true)
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  cours Cours @relation(fields: [id_cours], references: [id], onDelete: Cascade)
+  
+  @@index([id_cours])
+  @@index([type])
+  @@map("course_materials")
+}
+
+// Course Announcement
+model AnnonceCours {
+  id                     String                  @id @default(cuid())
+  titre                  String?
+  contenu                String                  @db.Text
+  id_cours               String
+  id_auteur              String
+  
+  // Options
+  estEpingle             Boolean                 @default(false)
+  autoriserCommentaires  Boolean                 @default(true)
+  
+  // Attachments
+  fichiers               Json?
+  
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  
+  // Relations
+  cours        Cours                    @relation(fields: [id_cours], references: [id], onDelete: Cascade)
+  auteur       Utilisateur              @relation("CourseAnnouncements", fields: [id_auteur], references: [id])
+  commentaires CommentaireAnnonce[]
+  
+  @@index([id_cours])
+  @@index([id_auteur])
+  @@map("course_announcements")
+}
+
+// Announcement Comment
+model CommentaireAnnonce {
+  id             String        @id @default(cuid())
+  id_annonce     String
+  id_utilisateur String
+  contenu        String        @db.Text
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  
+  annonce     AnnonceCours @relation(fields: [id_annonce], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur   @relation("AnnouncementComments", fields: [id_utilisateur], references: [id])
+  
+  @@index([id_annonce])
+  @@index([id_utilisateur])
+  @@map("announcement_comments")
+}
+
+// Discussion/Forum Thread
+model Discussion {
+  id             String               @id @default(cuid())
+  titre          String
+  contenu        String               @db.Text
+  id_cours       String
+  id_auteur      String
+  
+  // Status
+  estEpingle     Boolean              @default(false)
+  estResolu      Boolean              @default(false)
+  estVerrouille  Boolean              @default(false)
+  
+  // Stats
+  nbVues         Int                  @default(0)
+  nbReponses     Int                  @default(0)
+  
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  
+  // Relations
+  cours    Cours                 @relation(fields: [id_cours], references: [id], onDelete: Cascade)
+  auteur   Utilisateur           @relation("Discussions", fields: [id_auteur], references: [id])
+  reponses ReponseDiscussion[]
+  
+  @@index([id_cours])
+  @@index([id_auteur])
+  @@map("discussions")
+}
+
+// Discussion Reply
+model ReponseDiscussion {
+  id             String      @id @default(cuid())
+  id_discussion  String
+  id_auteur      String
+  contenu        String      @db.Text
+  estMeilleure   Boolean     @default(false) // Best answer
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  
+  discussion Discussion  @relation(fields: [id_discussion], references: [id], onDelete: Cascade)
+  auteur     Utilisateur @relation("DiscussionReplies", fields: [id_auteur], references: [id])
+  
+  @@index([id_discussion])
+  @@index([id_auteur])
+  @@map("discussion_replies")
+}
+
+// Attendance for Courses
+model PresenceCours {
+  id          String    @id @default(cuid())
+  id_cours    String
+  id_etudiant String
+  dateSeance  DateTime
+  statut      String    // present, absent, late, excused
+  remarque    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  cours    Cours    @relation(fields: [id_cours], references: [id], onDelete: Cascade)
+  etudiant Etudiant @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+  
+  @@unique([id_cours, id_etudiant, dateSeance])
+  @@index([id_cours])
+  @@index([id_etudiant])
+  @@map("course_attendance")
+}
+
+// AI Chat History
+model ChatAI {
+  id              String      @id @default(cuid())
+  id_cours        String?
+  id_utilisateur  String
+  
+  // Chat data
+  question        String      @db.Text
+  reponse         String      @db.Text
+  contexte        Json?       // Additional context
+  
+  // Metadata
+  modeleAI        String      @default("gpt-4")
+  tokensUtilises  Int?
+  tempReponse     Float?      // Response time in seconds
+  
+  // Feedback
+  estUtile        Boolean?
+  feedback        String?
+  
+  createdAt       DateTime    @default(now())
+  
+  utilisateur Utilisateur @relation("AIChats", fields: [id_utilisateur], references: [id])
+  
+  @@index([id_utilisateur])
+  @@index([id_cours])
+  @@map("ai_chats")
+}
+
+// Calendar Event
+model EvenementCalendrier {
+  id                 String      @id @default(cuid())
+  titre              String
+  description        String?     @db.Text
+  id_cours           String?
+  id_utilisateur     String
+  
+  // Date/Time
+  dateDebut          DateTime
+  dateFin            DateTime
+  estJourneeComplete Boolean     @default(false)
+  
+  // Type
+  type               String      // "assignment", "exam", "class", "office_hours", "personal"
+  couleur            String      @default("#3B82F6")
+  
+  // Reminder
+  rappel             Int?        // Minutes before event
+  
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  
+  utilisateur Utilisateur @relation("CalendarEvents", fields: [id_utilisateur], references: [id])
+  
+  @@index([id_utilisateur])
+  @@index([dateDebut])
+  @@map("calendar_events")
+}
+
+// Password Reset Token
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  userId     String
+  email      String
+  expiresAt  DateTime
+  used       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  
+  utilisateur Utilisateur @relation("PasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([token])
+  @@index([userId])
+  @@index([email])
+  @@map("password_reset_tokens")
 }

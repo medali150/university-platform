@@ -127,6 +127,16 @@ async def create_absence(
             }
         )
         
+        # Count total absences for this student in this subject
+        total_absences = await prisma.absence.count(
+            where={
+                "id_etudiant": absence_data.studentId,
+                "emploiTemps": {
+                    "id_matiere": schedule.id_matiere
+                }
+            }
+        )
+        
         # Send notification to student about absence
         try:
             await create_notification(
@@ -141,16 +151,36 @@ async def create_absence(
         except Exception as e:
             logger.error(f"❌ Failed to send notification: {e}")
         
-        # OLD notification system removed - using new notification system above
-        # (send_absence_notification function from old notificationapi service)
-        
-        # TODO: Add high absence alert notification using new notification system
-        # (Old send_high_absence_alert function removed)
+        # Send email notification about the absence
+        try:
+            from app.services.email_service import send_absence_notification_email
+            
+            # Get teacher name
+            teacher_name = f"{schedule.enseignant.utilisateur.prenom} {schedule.enseignant.utilisateur.nom}" if schedule.enseignant else "Enseignant"
+            
+            # Send email with absence count
+            await send_absence_notification_email(
+                to_email=student.utilisateur.email,
+                student_name=f"{student.utilisateur.prenom} {student.utilisateur.nom}",
+                absence_count=total_absences,
+                subject_name=schedule.matiere.nom,
+                absence_date=schedule.date.strftime('%d/%m/%Y'),
+                teacher_name=teacher_name
+            )
+            
+            logger.info(f"✅ Email sent to {student.utilisateur.email} - Absence #{total_absences} in {schedule.matiere.nom}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to send email: {e}")
+            # Don't fail the absence creation if email fails
         
         return {
             "message": "Absence créée avec succès",
             "id": absence.id,
-            "notification_sent": True
+            "notification_sent": True,
+            "email_sent": True,
+            "total_absences": total_absences,
+            "warning_level": "eliminated" if total_absences >= 3 else ("critical" if total_absences == 2 else "normal")
         }
         
     except HTTPException:

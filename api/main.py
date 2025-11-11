@@ -1,21 +1,30 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.core.config import settings
 from app.db.prisma_client import lifespan
 from app.routers import auth, admin, departments, specialties
 from app.routers import students_crud, teachers_crud, department_heads_crud
 from app.routers import admin_students, admin_teachers, admin_department_heads  # NEW: Fixed admin routes
-from app.routers import levels_crud, subjects_crud, admin_dashboard
+from app.routers import levels_crud, subjects_crud, rooms_crud, admin_dashboard
 from app.routers import department_head_dashboard, department_head_timetable
-from app.routers import levels_public, absence_management, teacher_profile, simple_absences, timetable_management, absence_notifications, student_profile, debug_absences, room_occupancy, notifications
-from app.routers import timetables_optimized  # Optimized timetable system (replaces old schedules)
+from app.routers import semester_timetable  # ✅ ACTIVE: Semester-based timetable system
+from app.routers import levels_public, absence_management, teacher_profile, simple_absences, absence_notifications, student_profile, debug_absences, room_occupancy, notifications
+# Note: department_head_timetable provides helper endpoints (groups, teachers, rooms, subjects)
 from app.routers import messages  # Messaging system for teacher-student communication
 from app.routers import student_averages  # Student averages management for department heads
 from app.routers import teacher_grades  # Teacher grade submission and management
 from app.routers import student_grades  # Student grades viewing
 from app.routers import department_head_analytics  # Department head analytics and statistics
 from app.routers import events  # Events and news system
+# Smart Classroom System - Google Classroom-like features
+from app.routers import courses  # Course management
+from app.routers import assignments  # Assignment creation, submission, grading
+from app.routers import classroom_communication  # Announcements & discussions
+from app.routers import classroom_materials  # Course materials & file uploads
+from app.routers import classroom_ai  # AI assistant, plagiarism, feedback, summarization
 
 # Create FastAPI app
 app = FastAPI(
@@ -34,6 +43,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount uploads directory for serving files
+uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 # Include routers
 app.include_router(auth.router)
 app.include_router(departments.router)
@@ -47,26 +61,34 @@ app.include_router(admin_teachers.router)  # NEW: Fixed with French models
 app.include_router(admin_department_heads.router)  # NEW: Fixed with French models
 app.include_router(levels_crud.router)
 app.include_router(subjects_crud.router)
+app.include_router(rooms_crud.router)  # NEW: Rooms CRUD
 app.include_router(levels_public.router)
 app.include_router(admin_dashboard.router)
 app.include_router(department_head_dashboard.router)
-app.include_router(department_head_timetable.router)
+app.include_router(department_head_timetable.router)  # Helper endpoints: groups, teachers, rooms, subjects
+app.include_router(semester_timetable.router)  # ✅ MAIN: Semester timetable creation and management
 app.include_router(absence_management.router)
 app.include_router(teacher_profile.router)
 app.include_router(simple_absences.router)
-app.include_router(timetable_management.router)
+# app.include_router(timetable_management.router)  # OLD: Weekly management - DISABLED
 app.include_router(absence_notifications.router)
 app.include_router(student_profile.router)
 app.include_router(debug_absences.router)
 app.include_router(room_occupancy.router)
 app.include_router(notifications.router)
-app.include_router(timetables_optimized.router)  # NEW: Optimized timetable system
+# app.include_router(timetables_optimized.router)  # OLD: Conflicts with semester system - DISABLED
 app.include_router(messages.router)  # NEW: Messaging system
 app.include_router(student_averages.router)  # NEW: Student averages management
 app.include_router(teacher_grades.router)  # NEW: Teacher grade submission
 app.include_router(student_grades.router)  # NEW: Student grades viewing
 app.include_router(department_head_analytics.router)  # NEW: Department head analytics
 app.include_router(events.router)  # NEW: Events and news system
+# Smart Classroom System
+app.include_router(courses.router)  # NEW: Course management (create, enroll, analytics)
+app.include_router(assignments.router)  # NEW: Assignments & submissions
+app.include_router(classroom_communication.router)  # NEW: Announcements & discussions
+app.include_router(classroom_materials.router)  # NEW: Course materials
+app.include_router(classroom_ai.router)  # NEW: AI features
 
 
 @app.get("/")
@@ -96,7 +118,18 @@ def root():
             "department_head_dashboard": "/department-head",
             "absence_management": "/absences",
             "debug_absences": "/debug-absences",
-            "room_occupancy": "/room-occupancy"
+            "room_occupancy": "/room-occupancy",
+            "smart_classroom": {
+                "courses": "/api/classroom/courses",
+                "assignments": "/api/classroom/assignments",
+                "announcements": "/api/classroom/announcements",
+                "discussions": "/api/classroom/discussions",
+                "materials": "/api/classroom/materials",
+                "ai_chat": "/api/classroom/ai/chat",
+                "plagiarism": "/api/classroom/ai/plagiarism/check",
+                "ai_feedback": "/api/classroom/ai/feedback/generate",
+                "summarize": "/api/classroom/ai/summarize"
+            }
         }
     }
 

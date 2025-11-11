@@ -140,15 +140,15 @@ async def get_student_schedule(
         {"id": "saturday", "name": "Samedi", "date": target_monday + timedelta(days=5)}
     ]
     
-    # Create timetable structure
-    timetable = {}
-    for time_slot in time_slots:
-        timetable[time_slot["id"]] = {
-            "time_info": time_slot,
-            "days": {}
-        }
-        for day in days:
-            timetable[time_slot["id"]]["days"][day["id"]] = None
+    # Create timetable structure organized by day (for frontend compatibility)
+    timetable_by_day = {
+        "lundi": [],
+        "mardi": [],
+        "mercredi": [],
+        "jeudi": [],
+        "vendredi": [],
+        "samedi": []
+    }
     
     # Fill timetable with schedule data
     for schedule in schedules:
@@ -162,64 +162,39 @@ async def get_student_schedule(
         if day_of_week > 5:  # Skip Sunday
             continue
             
-        day_key = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][day_of_week]
+        day_name_fr = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"][day_of_week]
         
-        # Get time slot
+        # Get time
         schedule_start_time = schedule.heure_debut.time() if hasattr(schedule.heure_debut, 'time') else schedule.heure_debut
+        schedule_end_time = schedule.heure_fin.time() if hasattr(schedule.heure_fin, 'time') else schedule.heure_fin
         start_time_str = schedule_start_time.strftime("%H:%M")
+        end_time_str = schedule_end_time.strftime("%H:%M")
         
-        # Find matching time slot
-        matching_slot = None
-        for slot in time_slots:
-            slot_start = datetime.strptime(slot["start"], "%H:%M").time()
-            slot_end = datetime.strptime(slot["end"], "%H:%M").time()
-            
-            # Check if schedule time falls within this slot (with some tolerance)
-            if slot_start <= schedule_start_time <= slot_end:
-                matching_slot = slot["id"]
-                break
+        # Get absence status
+        absence = absence_map.get(schedule.id)
         
-        if matching_slot:
-            # Get absence status
-            absence = absence_map.get(schedule.id)
-            
-            # Create course info
-            course_info = {
-                "id": schedule.id,
-                "subject": {
-                    "name": schedule.matiere.nom if schedule.matiere else "Matière inconnue",
-                    "id": schedule.matiere.id if schedule.matiere else None
-                },
-                "teacher": {
-                    "name": f"{schedule.enseignant.prenom} {schedule.enseignant.nom}" if schedule.enseignant else "Enseignant inconnu",
-                    "id": schedule.enseignant.id if schedule.enseignant else None
-                },
-                "room": {
-                    "code": schedule.salle.code if schedule.salle else "Salle inconnue",
-                    "id": schedule.salle.id if schedule.salle else None
-                },
-                "time": {
-                    "start": start_time_str,
-                    "end": schedule.heure_fin.time().strftime("%H:%M") if schedule.heure_fin else None
-                },
-                "absence": {
-                    "is_absent": bool(absence),
-                    "status": absence.statut if absence else None,
-                    "reason": absence.motif if absence else None
-                } if absence else None,
-                "status": getattr(schedule, 'status', 'PLANNED')
-            }
-            
-            timetable[matching_slot]["days"][day_key] = course_info
+        # Create course info
+        course_info = {
+            "id": schedule.id,
+            "subject": schedule.matiere.nom if schedule.matiere else "Matière inconnue",
+            "teacher": f"{schedule.enseignant.prenom} {schedule.enseignant.nom}" if schedule.enseignant else "Enseignant inconnu",
+            "room": schedule.salle.code if schedule.salle else "Salle inconnue",
+            "start_time": start_time_str,
+            "end_time": end_time_str,
+            "absence": {
+                "is_absent": bool(absence),
+                "status": absence.statut if absence else None,
+                "reason": absence.motif if absence else None
+            } if absence else None,
+            "status": getattr(schedule, 'status', 'PLANNED')
+        }
+        
+        timetable_by_day[day_name_fr].append(course_info)
 
     return {
-        "timetable": timetable,
-        "week_info": {
-            "week_start": target_monday.isoformat(),
-            "week_end": target_sunday.isoformat(),
-            "week_offset": week_offset,
-            "is_current_week": week_offset == 0
-        },
+        "timetable": timetable_by_day,
+        "week_start": target_monday.strftime("%d/%m/%Y"),
+        "week_end": target_sunday.strftime("%d/%m/%Y"),
         "student_info": {
             "id": student.id,
             "name": f"{student.prenom} {student.nom}",
@@ -229,9 +204,10 @@ async def get_student_schedule(
                 "name": student.groupe.nom if student.groupe else "Groupe inconnu"
             }
         },
-        "time_slots": time_slots,
-        "days": days
+        "total_courses": len(schedules),
+        "note": "Emploi du temps récurrent pour le semestre"
     }
+
 @router.get("/schedule/today")
 async def get_student_today_schedule(
     prisma: Prisma = Depends(get_prisma),

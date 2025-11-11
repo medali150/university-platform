@@ -174,14 +174,18 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Pas encore de compte ?{' '}
-                <Link 
-                  href="/register" 
-                  className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
-                >
-                  Créer un compte
-                </Link>
+              <Link 
+                href="/forgot-password" 
+                className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors"
+              >
+                Mot de passe oublié?
+              </Link>
+            </div>
+
+            <div className="mt-4 text-center">
+              <p className="text-xs text-gray-500">
+                Les comptes sont créés par l'administration.<br/>
+                Contactez votre établissement si vous n'avez pas encore de compte.
               </p>
             </div>
 

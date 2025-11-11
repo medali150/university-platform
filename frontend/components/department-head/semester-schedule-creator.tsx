@@ -20,21 +20,31 @@ import {
   MapPin,
   Clock
 } from 'lucide-react';
-import TimetableAPI, { 
-  SemesterScheduleCreate, 
-  DayOfWeek, 
-  RecurrenceType,
-  AvailableResources 
-} from '@/lib/timetable-api';
+import { api } from '@/lib/api';
+
+// Enums
+enum DayOfWeek {
+  MONDAY = 'MONDAY',
+  TUESDAY = 'TUESDAY',
+  WEDNESDAY = 'WEDNESDAY',
+  THURSDAY = 'THURSDAY',
+  FRIDAY = 'FRIDAY',
+  SATURDAY = 'SATURDAY'
+}
+
+enum RecurrenceType {
+  WEEKLY = 'WEEKLY',
+  BIWEEKLY = 'BIWEEKLY'
+}
 
 export default function SemesterScheduleCreator() {
   const [loading, setLoading] = useState(false);
-  const [resources, setResources] = useState<AvailableResources | null>(null);
+  const [resources, setResources] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<SemesterScheduleCreate>({
+  const [formData, setFormData] = useState<any>({
     matiere_id: '',
     groupe_id: '',
     enseignant_id: '',
@@ -55,21 +65,28 @@ export default function SemesterScheduleCreator() {
   const loadResources = async () => {
     try {
       setLoading(true);
-      const data = await TimetableAPI.getAvailableResources();
+      const [groupes, enseignants, matieres, salles] = await Promise.all([
+        api.getTimetableGroups(),
+        api.getTimetableTeachers(),
+        api.getTimetableSubjects(),
+        api.getTimetableRooms()
+      ]);
+      
+      const data = { groupes, enseignants, matieres, salles };
       setResources(data);
       
       // Pre-select first items
       if (data.matieres.length > 0) {
-        setFormData(prev => ({ ...prev, matiere_id: data.matieres[0].id }));
+        setFormData((prev: any) => ({ ...prev, matiere_id: data.matieres[0].id }));
       }
       if (data.groupes.length > 0) {
-        setFormData(prev => ({ ...prev, groupe_id: data.groupes[0].id }));
+        setFormData((prev: any) => ({ ...prev, groupe_id: data.groupes[0].id }));
       }
       if (data.enseignants.length > 0) {
-        setFormData(prev => ({ ...prev, enseignant_id: data.enseignants[0].id }));
+        setFormData((prev: any) => ({ ...prev, enseignant_id: data.enseignants[0].id }));
       }
       if (data.salles.length > 0) {
-        setFormData(prev => ({ ...prev, salle_id: data.salles[0].id }));
+        setFormData((prev: any) => ({ ...prev, salle_id: data.salles[0].id }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load resources');
@@ -85,7 +102,7 @@ export default function SemesterScheduleCreator() {
 
     try {
       setLoading(true);
-      const result = await TimetableAPI.createSemesterSchedule(formData);
+      const result = await api.createTimetableSchedule(formData);
       
       if (result.success) {
         setSuccess(
@@ -104,8 +121,8 @@ export default function SemesterScheduleCreator() {
     }
   };
 
-  const handleChange = (field: keyof SemesterScheduleCreate, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
   if (!resources) {
@@ -173,7 +190,7 @@ export default function SemesterScheduleCreator() {
                   <SelectValue placeholder="Sélectionner une matière" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.matieres.map((matiere) => (
+                  {resources.matieres.map((matiere: any) => (
                     <SelectItem key={matiere.id} value={matiere.id}>
                       {matiere.nom} {matiere.code && `(${matiere.code})`}
                     </SelectItem>
@@ -193,7 +210,7 @@ export default function SemesterScheduleCreator() {
                   <SelectValue placeholder="Sélectionner un groupe" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.groupes.map((groupe) => (
+                  {resources.groupes.map((groupe: any) => (
                     <SelectItem key={groupe.id} value={groupe.id}>
                       {groupe.nom} - {groupe.niveau} ({groupe.specialite})
                     </SelectItem>
@@ -213,7 +230,7 @@ export default function SemesterScheduleCreator() {
                   <SelectValue placeholder="Sélectionner un enseignant" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.enseignants.map((enseignant) => (
+                  {resources.enseignants.map((enseignant: any) => (
                     <SelectItem key={enseignant.id} value={enseignant.id}>
                       {enseignant.prenom} {enseignant.nom}
                     </SelectItem>
@@ -233,7 +250,7 @@ export default function SemesterScheduleCreator() {
                   <SelectValue placeholder="Sélectionner une salle" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resources.salles.map((salle) => (
+                  {resources.salles.map((salle: any) => (
                     <SelectItem key={salle.id} value={salle.id}>
                       {salle.code} ({salle.type}) - {salle.capacite} places
                     </SelectItem>
