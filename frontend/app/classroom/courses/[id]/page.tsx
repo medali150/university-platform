@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { classroomApi, Course, Announcement, Assignment } from '@/lib/classroom-api';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,25 +28,17 @@ interface CourseHomeProps {
 
 export default function CourseHomePage({ params }: CourseHomeProps) {
   const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    const user = localStorage.getItem('user');
-    console.log('📦 User from localStorage:', user);
-    if (user) {
-      const parsedUser = JSON.parse(user);
-      console.log('👤 Parsed user:', parsedUser);
-      console.log('🎭 User role:', parsedUser.role);
-      setCurrentUser(parsedUser);
-    } else {
-      console.error('❌ NO USER IN LOCALSTORAGE!');
+    if (!authLoading) {
+      loadCourseData();
     }
-    loadCourseData();
-  }, [params.id]);
+  }, [params.id, authLoading]);
 
   const loadCourseData = async () => {
     try {
@@ -66,28 +59,35 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
     }
   };
 
-  // SIMPLIFIED teacher check - just check role, ignore ownership for now
-  const isTeacher = currentUser?.role === 'TEACHER';
+  // Check if user is teacher
+  const isTeacher = user?.role === 'TEACHER';
   
   // Debug logging
   useEffect(() => {
-    if (currentUser && course) {
+    if (user && course) {
       console.log('🔍 Teacher Check:', {
-        userRole: currentUser.role,
-        userEnseignantId: currentUser.enseignant_id,
+        userRole: user.role,
+        userEnseignantId: user.enseignant_id,
         courseTeacherId: course.id_enseignant,
-        isTeacherRole: currentUser.role === 'TEACHER',
-        SHOW_BUTTONS: currentUser.role === 'TEACHER' ? 'YES ✅' : 'NO ❌'
+        isTeacherRole: user.role === 'TEACHER',
+        SHOW_BUTTONS: user.role === 'TEACHER' ? 'YES ✅' : 'NO ❌'
       });
     }
-  }, [currentUser, course]);
+  }, [user, course]);
 
-  if (loading) {
+  // Show loading while auth is loading
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Redirect if not authenticated
+  if (!isAuthenticated || !user) {
+    router.push('/login');
+    return null;
   }
 
   if (!course) {
@@ -177,7 +177,7 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
                 announcements={announcements}
                 upcomingAssignments={upcomingAssignments}
                 isTeacher={isTeacher}
-                currentUser={currentUser}
+                currentUser={user}
                 onRefresh={loadCourseData}
               />
             </TabsContent>
@@ -239,7 +239,7 @@ function StreamView({ course, announcements, upcomingAssignments, isTeacher, onR
         <Card className="bg-yellow-50 border-yellow-300">
           <CardContent className="pt-4">
             <p className="text-sm font-bold">🔍 DEBUG INFO:</p>
-            <p className="text-xs">Rôle utilisateur: <strong>{currentUser?.role || 'NON DÉFINI'}</strong></p>
+            <p className="text-xs">Rôle utilisateur: <strong>{user?.role || 'NON DÉFINI'}</strong></p>
             <p className="text-xs">isTeacher: <strong>{isTeacher ? 'OUI ✅' : 'NON ❌'}</strong></p>
             <p className="text-xs">Boutons visibles: <strong>{isTeacher ? 'OUI ✅' : 'NON ❌'}</strong></p>
           </CardContent>

@@ -90,15 +90,20 @@ Recent assignments: {', '.join([d.titre for d in course.devoirs]) if course.devo
             raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
         
         # Save chat history
-        await prisma.chatai.create(
-            data={
-                "id_utilisateur": current_user.id,
-                "id_cours": chat_data.course_id,
-                "question": chat_data.message,
-                "reponse": ai_response,
-                "contexte": {"has_course_context": bool(chat_data.course_id)}
-            }
-        )
+        try:
+            await prisma.chatai.create(
+                data={
+                    "id_utilisateur": current_user.id,
+                    "id_cours": chat_data.course_id if chat_data.course_id else None,
+                    "question": chat_data.message,
+                    "reponse": ai_response,
+                    "contexte": {"has_course_context": bool(chat_data.course_id)} if chat_data.course_id else None,
+                    "modeleAI": "llama-3.3-70b-versatile"
+                }
+            )
+        except Exception as e:
+            # Don't fail the request if chat history save fails
+            print(f"⚠️ Failed to save chat history: {e}")
         
         print(f"✅ AI chat response generated for user {current_user.email}")
         

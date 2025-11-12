@@ -198,7 +198,7 @@ export default function AdminDashboard() {
         {/* Management Actions */}
         <div className="mt-12">
           <h3 className="text-lg font-semibold text-gray-800 mb-6">🛠️ Administrative Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <a href="/students" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-green-500">
               <div className="text-center">
                 <div className="text-3xl mb-3">👨‍🎓</div>
@@ -218,6 +218,13 @@ export default function AdminDashboard() {
                 <div className="text-3xl mb-3">👨‍💼</div>
                 <h4 className="font-semibold text-gray-800">Department Heads</h4>
                 <p className="text-sm text-gray-600 mt-2">Manage department head assignments</p>
+              </div>
+            </a>
+            <a href="/bulk-import" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-indigo-500">
+              <div className="text-center">
+                <div className="text-3xl mb-3">📊</div>
+                <h4 className="font-semibold text-gray-800">Bulk Import</h4>
+                <p className="text-sm text-gray-600 mt-2">Import students & teachers from Excel</p>
               </div>
             </a>
             <a href="/schedules" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-blue-500">

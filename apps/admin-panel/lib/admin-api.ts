@@ -605,6 +605,159 @@ export const adminScheduleApi = {
   }
 };
 
+// Bulk Import Functions
+export const adminBulkImportApi = {
+  async importStudents(file: File): Promise<ApiResponse<{
+    total: number;
+    created: number;
+    skipped: number;
+    errors: string[];
+  }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for file upload
+
+    try {
+      const headers: HeadersInit = {
+        'X-Admin-Client': 'true',
+        'X-Requested-With': 'AdminPanel',
+      };
+      
+      if (adminAuthToken) {
+        headers['Authorization'] = `Bearer ${adminAuthToken}`;
+      }
+
+      const response = await fetch(`${ADMIN_API_BASE_URL}/admin/bulk-import/students`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return { success: true, data: data.details };
+      } else {
+        const error = await response.json();
+        return { success: false, error: error.detail || 'Failed to import students' };
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      return { 
+        success: false, 
+        error: `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      };
+    }
+  },
+
+  async importTeachers(file: File): Promise<ApiResponse<{
+    total: number;
+    created: number;
+    skipped: number;
+    errors: string[];
+  }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for file upload
+
+    try {
+      const headers: HeadersInit = {
+        'X-Admin-Client': 'true',
+        'X-Requested-With': 'AdminPanel',
+      };
+      
+      if (adminAuthToken) {
+        headers['Authorization'] = `Bearer ${adminAuthToken}`;
+      }
+
+      const response = await fetch(`${ADMIN_API_BASE_URL}/admin/bulk-import/teachers`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return { success: true, data: data.details };
+      } else {
+        const error = await response.json();
+        return { success: false, error: error.detail || 'Failed to import teachers' };
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      return { 
+        success: false, 
+        error: `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      };
+    }
+  },
+
+  async downloadStudentsTemplate(): Promise<void> {
+    try {
+      const headers: HeadersInit = {};
+      
+      if (adminAuthToken) {
+        headers['Authorization'] = `Bearer ${adminAuthToken}`;
+      }
+
+      const response = await fetch(`${ADMIN_API_BASE_URL}/admin/bulk-import/template/students`, {
+        headers
+      });
+
+      if (!response.ok) throw new Error('Failed to download template');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'students_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      throw new Error(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
+
+  async downloadTeachersTemplate(): Promise<void> {
+    try {
+      const headers: HeadersInit = {};
+      
+      if (adminAuthToken) {
+        headers['Authorization'] = `Bearer ${adminAuthToken}`;
+      }
+
+      const response = await fetch(`${ADMIN_API_BASE_URL}/admin/bulk-import/template/teachers`, {
+        headers
+      });
+
+      if (!response.ok) throw new Error('Failed to download template');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'teachers_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      throw new Error(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+};
+
 // Initialize admin auth on import
 if (typeof window !== 'undefined') {
   adminAuthApi.init();

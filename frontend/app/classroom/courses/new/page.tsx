@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { classroomApi } from '@/lib/classroom-api';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 
 // Get current academic year
 const getCurrentAcademicYear = () => {
@@ -25,6 +26,7 @@ const getCurrentAcademicYear = () => {
 
 export default function NewCoursePage() {
   const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<{
     nom: string;
@@ -42,6 +44,14 @@ export default function NewCoursePage() {
     couleur: '#3B82F6',
     estPublic: false,
   });
+
+  // Protect this page - only teachers can create courses
+  useEffect(() => {
+    if (!authLoading && (!isAuthenticated || user?.role !== 'TEACHER')) {
+      alert('❌ Seuls les enseignants peuvent créer des cours');
+      router.push('/classroom/courses');
+    }
+  }, [authLoading, isAuthenticated, user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +72,20 @@ export default function NewCoursePage() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // If not teacher, don't render (will redirect)
+  if (!user || user.role !== 'TEACHER') {
+    return null;
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">

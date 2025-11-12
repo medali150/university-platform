@@ -12,6 +12,7 @@ from app.routers import levels_crud, subjects_crud, rooms_crud, admin_dashboard
 from app.routers import department_head_dashboard, department_head_timetable
 from app.routers import semester_timetable  # ✅ ACTIVE: Semester-based timetable system
 from app.routers import levels_public, absence_management, teacher_profile, simple_absences, absence_notifications, student_profile, debug_absences, room_occupancy, notifications
+from app.routers import bulk_import  # Bulk import students and teachers from Excel
 # Note: department_head_timetable provides helper endpoints (groups, teachers, rooms, subjects)
 from app.routers import messages  # Messaging system for teacher-student communication
 from app.routers import student_averages  # Student averages management for department heads
@@ -62,6 +63,7 @@ app.include_router(admin_department_heads.router)  # NEW: Fixed with French mode
 app.include_router(levels_crud.router)
 app.include_router(subjects_crud.router)
 app.include_router(rooms_crud.router)  # NEW: Rooms CRUD
+app.include_router(bulk_import.router)  # NEW: Bulk import from Excel
 app.include_router(levels_public.router)
 app.include_router(admin_dashboard.router)
 app.include_router(department_head_dashboard.router)
