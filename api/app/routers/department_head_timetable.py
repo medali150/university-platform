@@ -610,6 +610,7 @@ async def create_schedule(
     # Create the schedule(s)
     try:
         created_schedules = []
+        conflicts = []  # Initialize conflicts list
         
         # Determine if we should create recurring schedules
         if schedule_data.recurrence == "WEEKLY" and schedule_data.semester_end:
@@ -629,7 +630,8 @@ async def create_schedule(
                 day_start = create_local_datetime(current_date, datetime.min.time())
                 day_end = create_local_datetime(current_date, datetime.max.time())
                 
-                conflict = await prisma.emploitemps.find_first(
+                # Check for room conflict
+                room_conflict = await prisma.emploitemps.find_first(
                     where={
                         "date": {"gte": day_start, "lte": day_end},
                         "id_salle": schedule_data.room_id,
@@ -653,10 +655,81 @@ async def create_schedule(
                                 ]
                             }
                         ]
+                    },
+                    include={
+                        "matiere": True,
+                        "groupe": True,
+                        "enseignant": True
                     }
                 )
                 
-                if not conflict:
+                # Check for teacher conflict (teacher teaching 2 classes at same time)
+                teacher_conflict = await prisma.emploitemps.find_first(
+                    where={
+                        "date": {"gte": day_start, "lte": day_end},
+                        "id_enseignant": schedule_data.teacher_id,
+                        "OR": [
+                            {
+                                "AND": [
+                                    {"heure_debut": {"lte": occurrence_start}},
+                                    {"heure_fin": {"gt": occurrence_start}}
+                                ]
+                            },
+                            {
+                                "AND": [
+                                    {"heure_debut": {"lt": occurrence_end}},
+                                    {"heure_fin": {"gte": occurrence_end}}
+                                ]
+                            },
+                            {
+                                "AND": [
+                                    {"heure_debut": {"gte": occurrence_start}},
+                                    {"heure_fin": {"lte": occurrence_end}}
+                                ]
+                            }
+                        ]
+                    },
+                    include={
+                        "matiere": True,
+                        "groupe": True,
+                        "enseignant": True
+                    }
+                )
+                
+                # Check for group conflict (group with 2 different teachers at same time)
+                group_conflict = await prisma.emploitemps.find_first(
+                    where={
+                        "date": {"gte": day_start, "lte": day_end},
+                        "id_groupe": schedule_data.group_id,
+                        "OR": [
+                            {
+                                "AND": [
+                                    {"heure_debut": {"lte": occurrence_start}},
+                                    {"heure_fin": {"gt": occurrence_start}}
+                                ]
+                            },
+                            {
+                                "AND": [
+                                    {"heure_debut": {"lt": occurrence_end}},
+                                    {"heure_fin": {"gte": occurrence_end}}
+                                ]
+                            },
+                            {
+                                "AND": [
+                                    {"heure_debut": {"gte": occurrence_start}},
+                                    {"heure_fin": {"lte": occurrence_end}}
+                                ]
+                            }
+                        ]
+                    },
+                    include={
+                        "matiere": True,
+                        "groupe": True,
+                        "enseignant": True
+                    }
+                )
+                
+                if not room_conflict and not teacher_conflict and not group_conflict:
                     # Create schedule for this week
                     new_schedule = await prisma.emploitemps.create(
                         data={
@@ -674,7 +747,40 @@ async def create_schedule(
                     created_schedules.append(new_schedule)
                     print(f"  ✅ Created schedule for {current_date}")
                 else:
-                    print(f"  ⚠️ Skipping {current_date} - conflict detected")
+                    # Track conflict details
+                    if room_conflict:
+                        conflict_info = {
+                            "date": current_date.strftime("%Y-%m-%d"),
+                            "reason": "room_occupied",
+                            "conflicting_subject": room_conflict.matiere.nom if room_conflict.matiere else "Unknown",
+                            "conflicting_group": room_conflict.groupe.nom if room_conflict.groupe else "Unknown",
+                            "time": f"{room_conflict.heure_debut.strftime('%H:%M')}-{room_conflict.heure_fin.strftime('%H:%M')}"
+                        }
+                        conflicts.append(conflict_info)
+                        print(f"  ⚠️ Skipping {current_date} - room conflict detected")
+                    
+                    if teacher_conflict:
+                        conflict_info = {
+                            "date": current_date.strftime("%Y-%m-%d"),
+                            "reason": "teacher_occupied",
+                            "conflicting_subject": teacher_conflict.matiere.nom if teacher_conflict.matiere else "Unknown",
+                            "conflicting_group": teacher_conflict.groupe.nom if teacher_conflict.groupe else "Unknown",
+                            "conflicting_teacher": teacher_conflict.enseignant.nom if teacher_conflict.enseignant else "Unknown",
+                            "time": f"{teacher_conflict.heure_debut.strftime('%H:%M')}-{teacher_conflict.heure_fin.strftime('%H:%M')}"
+                        }
+                        conflicts.append(conflict_info)
+                        print(f"  ⚠️ Skipping {current_date} - teacher conflict detected")
+                    
+                    if group_conflict:
+                        conflict_info = {
+                            "date": current_date.strftime("%Y-%m-%d"),
+                            "reason": "group_occupied",
+                            "conflicting_subject": group_conflict.matiere.nom if group_conflict.matiere else "Unknown",
+                            "conflicting_teacher": group_conflict.enseignant.nom if group_conflict.enseignant else "Unknown",
+                            "time": f"{group_conflict.heure_debut.strftime('%H:%M')}-{group_conflict.heure_fin.strftime('%H:%M')}"
+                        }
+                        conflicts.append(conflict_info)
+                        print(f"  ⚠️ Skipping {current_date} - group conflict detected")
                 
                 # Move to next week
                 current_date += timedelta(days=7)
@@ -718,7 +824,7 @@ async def create_schedule(
         
         # Return the first schedule with relations
         if created_schedules:
-            return await prisma.emploitemps.find_unique(
+            first_schedule = await prisma.emploitemps.find_unique(
                 where={"id": created_schedules[0].id},
                 include={
                     "salle": True,
@@ -727,9 +833,29 @@ async def create_schedule(
                     "enseignant": True
                 }
             )
+            
+            # Return success with conflict information
+            return {
+                "success": True,
+                "schedule": first_schedule,
+                "created_count": len(created_schedules),
+                "conflicts": conflicts,
+                "message": f"Created {len(created_schedules)} schedule(s) successfully" + 
+                          (f" with {len(conflicts)} conflicts skipped" if conflicts else "")
+            }
+        
+        # If no schedules were created, return conflict details
+        if conflicts:
+            return {
+                "success": False,
+                "schedule": None,
+                "created_count": 0,
+                "conflicts": conflicts,
+                "message": f"No schedules created - {len(conflicts)} conflicts detected"
+            }
         
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="No schedules were created"
         )
         

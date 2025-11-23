@@ -16,8 +16,10 @@ class AbsenceStatus(str, Enum):
 
 class AbsenceCreate(BaseModel):
     studentId: str = Field(..., description="ID de l'étudiant")
-    scheduleId: str = Field(..., description="ID de l'emploi du temps")
-    reason: str = Field(..., description="Motif de l'absence")
+    scheduleId: Optional[str] = Field(None, description="ID de l'emploi du temps (optionnel)")
+    subjectId: Optional[str] = Field(None, description="ID de la matière (pour absence générale)")
+    absenceDate: Optional[datetime] = Field(None, description="Date de l'absence (pour absence générale)")
+    reason: str = Field(default="", description="Motif de l'absence")
     status: AbsenceStatus = Field(default=AbsenceStatus.UNJUSTIFIED, description="Statut de l'absence")
 
 class AbsenceUpdate(BaseModel):
@@ -48,12 +50,13 @@ class AbsenceResponse(BaseModel):
     id: str
     studentId: str
     studentName: str
-    scheduleId: str
-    className: str
-    teacherName: str
-    date: datetime
-    startTime: datetime
-    endTime: datetime
+    scheduleId: Optional[str] = None
+    className: Optional[str] = None
+    teacherName: Optional[str] = None
+    subjectName: Optional[str] = None
+    date: Optional[datetime] = None
+    startTime: Optional[datetime] = None
+    endTime: Optional[datetime] = None
     reason: str
     status: AbsenceStatus
     justificationText: Optional[str] = None

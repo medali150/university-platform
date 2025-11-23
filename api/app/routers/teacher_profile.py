@@ -613,6 +613,15 @@ async def get_teacher_groups(
     for schedule in schedules:
         group = schedule.groupe
         if group.id not in groups_map:
+            # Direct relationship: niveau has one specialite
+            specialty_info = None
+            if group.niveau.specialite:
+                specialty_info = {
+                    "id": group.niveau.specialite.id,
+                    "nom": group.niveau.specialite.nom,
+                    "departement": group.niveau.specialite.departement.nom if group.niveau.specialite.departement else "N/A"
+                }
+            
             groups_map[group.id] = {
                 "id": group.id,
                 "nom": group.nom,
@@ -620,11 +629,7 @@ async def get_teacher_groups(
                     "id": group.niveau.id,
                     "nom": group.niveau.nom
                 },
-                "specialite": {
-                    "id": group.niveau.specialite.id,
-                    "nom": group.niveau.specialite.nom,
-                    "departement": group.niveau.specialite.departement.nom
-                },
+                "specialite": specialty_info,
                 "student_count": len(group.etudiants),
                 "subjects": []
             }
@@ -716,16 +721,20 @@ async def get_group_students(
         
         students_info.append(absence_info)
     
+    specialty_info = None
+    if group.niveau.specialite:
+        specialty_info = {
+            "id": group.niveau.specialite.id,
+            "nom": group.niveau.specialite.nom
+        }
+    
     return TeacherGroupDetails(
         id=group.id,
         nom=group.nom,
         niveau={
             "id": group.niveau.id,
             "nom": group.niveau.nom,
-            "specialite": {
-                "id": group.niveau.specialite.id,
-                "nom": group.niveau.specialite.nom
-            }
+            "specialite": specialty_info
         },
         students=students_info
     )
@@ -942,6 +951,8 @@ async def get_teacher_schedule(
     # Format response
     formatted_schedules = []
     for schedule in schedules:
+        specialty_name = schedule.groupe.niveau.specialite.nom if schedule.groupe.niveau.specialite else "N/A"
+        
         formatted_schedules.append({
             "id": schedule.id,
             "date": schedule.date.isoformat(),
@@ -956,7 +967,7 @@ async def get_teacher_schedule(
                 "id": schedule.groupe.id,
                 "nom": schedule.groupe.nom,
                 "niveau": schedule.groupe.niveau.nom,
-                "specialite": schedule.groupe.niveau.specialite.nom
+                "specialite": specialty_name
             },
             "salle": {
                 "id": schedule.salle.id,
@@ -1025,8 +1036,11 @@ async def get_today_schedule(
 
     )
     
-    return [
-        {
+    result = []
+    for schedule in schedules:
+        specialty_name = schedule.groupe.niveau.specialite.nom if schedule.groupe.niveau.specialite else "N/A"
+        
+        result.append({
             "id": schedule.id,
             "date": schedule.date.isoformat(),
             "heure_debut": schedule.heure_debut.isoformat(),
@@ -1039,7 +1053,7 @@ async def get_today_schedule(
                 "id": schedule.groupe.id,
                 "nom": schedule.groupe.nom,
                 "niveau": schedule.groupe.niveau.nom,
-                "specialite": schedule.groupe.niveau.specialite.nom
+                "specialite": specialty_name
             },
             "salle": {
                 "id": schedule.salle.id,
@@ -1047,8 +1061,9 @@ async def get_today_schedule(
                 "type": schedule.salle.type
             },
             "status": schedule.status
-        } for schedule in schedules
-    ]
+        })
+    
+    return result
 
 
 @router.get("/stats")
@@ -1147,21 +1162,30 @@ async def get_teacher_groups_detailed(
         subject_id = schedule.matiere.id
         
         if group_id not in groups_map:
+            # Filter out students without user accounts
+            valid_students = [
+                {
+                    "id": student.id,
+                    "student_id": student.id,
+                    "nom": student.nom,
+                    "prenom": student.prenom,
+                    "email": student.email,
+                    "user_id": student.utilisateur.id if student.utilisateur else None
+                } for student in schedule.groupe.etudiants
+            ]
+            
+            # Get specialty and department directly from niveau
+            specialty_name = schedule.groupe.niveau.specialite.nom if schedule.groupe.niveau.specialite else "N/A"
+            department_name = schedule.groupe.niveau.specialite.departement.nom if schedule.groupe.niveau.specialite and schedule.groupe.niveau.specialite.departement else "N/A"
+            
             groups_map[group_id] = {
                 "id": schedule.groupe.id,
                 "nom": schedule.groupe.nom,
                 "level": schedule.groupe.niveau.nom,
-                "specialty": schedule.groupe.niveau.specialite.nom,
-                "department": schedule.groupe.niveau.specialite.departement.nom,
-                "student_count": len(schedule.groupe.etudiants),
-                "students": [
-                    {
-                        "id": student.utilisateur.id,
-                        "nom": student.utilisateur.nom,
-                        "prenom": student.utilisateur.prenom,
-                        "email": student.utilisateur.email
-                    } for student in schedule.groupe.etudiants
-                ],
+                "specialty": specialty_name,
+                "department": department_name,
+                "student_count": len(valid_students),
+                "students": valid_students,
                 "subjects": []
             }
         

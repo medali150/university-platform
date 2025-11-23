@@ -91,7 +91,7 @@ class TimetableAPIClient {
    * Get authorization headers with token
    */
   private getHeaders(): HeadersInit {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('authToken') || localStorage.getItem('auth_token')) : null;
     
     return {
       'Content-Type': 'application/json',
@@ -152,12 +152,21 @@ class TimetableAPIClient {
         date_to: weekEnd
       });
 
+      console.log('🔍 Fetching schedule with params:', {
+        group_id: groupId,
+        date_from: weekStart,
+        date_to: weekEnd,
+        url: `${this.baseURL}/department-head/timetable/schedules?${params.toString()}`
+      });
+
       const response = await fetch(
         `${this.baseURL}/department-head/timetable/schedules?${params.toString()}`,
         { headers: this.getHeaders() }
       );
 
       const data = await this.handleResponse<any[]>(response);
+      
+      console.log(`📥 Received ${data.length} schedules from API:`, data);
 
       // Transform backend data to timetable format
       const timetable: TimetableResponse = {
@@ -171,20 +180,89 @@ class TimetableAPIClient {
 
       data.forEach((schedule: any) => {
         const dayName = this.getDayNameFromDate(schedule.date);
+        console.log('Processing schedule:', {
+          id: schedule.id,
+          date: schedule.date,
+          dayName,
+          heure_debut: schedule.heure_debut,
+          heure_debut_type: typeof schedule.heure_debut,
+          heure_fin: schedule.heure_fin,
+          heure_fin_type: typeof schedule.heure_fin,
+          matiere: schedule.matiere?.nom,
+          enseignant: schedule.enseignant?.utilisateur
+        });
+        
         if (dayName && timetable[dayName]) {
           // Extract time from datetime objects (heure_debut and heure_fin are DateTime in Prisma)
-          const startTime = schedule.heure_debut ? new Date(schedule.heure_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-          const endTime = schedule.heure_fin ? new Date(schedule.heure_fin).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+          // The backend sends these as ISO strings like "2024-01-15T14:30:00.000Z"
+          let startTime = '';
+          let endTime = '';
           
-          timetable[dayName].push({
+          if (schedule.heure_debut) {
+            console.log('🕐 Raw heure_debut:', schedule.heure_debut);
+            // Try parsing as Date first, fallback to direct string
+            try {
+              const date = new Date(schedule.heure_debut);
+              if (!isNaN(date.getTime())) {
+                // Format as HH:MM (24-hour format)
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                startTime = `${hours}:${minutes}`;
+                console.log('  ✓ Parsed as Date:', startTime);
+              } else {
+                // It's already a time string (HH:MM:SS or HH:MM)
+                startTime = schedule.heure_debut.substring(0, 5);
+                console.log('  ✓ Used as string:', startTime);
+              }
+            } catch (e) {
+              console.log('  ⚠️ Parse error, using substring:', e);
+              startTime = schedule.heure_debut.substring(0, 5);
+            }
+          }
+          
+          if (schedule.heure_fin) {
+            console.log('🕑 Raw heure_fin:', schedule.heure_fin);
+            try {
+              const date = new Date(schedule.heure_fin);
+              if (!isNaN(date.getTime())) {
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                endTime = `${hours}:${minutes}`;
+                console.log('  ✓ Parsed as Date:', endTime);
+              } else {
+                endTime = schedule.heure_fin.substring(0, 5);
+                console.log('  ✓ Used as string:', endTime);
+              }
+            } catch (e) {
+              console.log('  ⚠️ Parse error, using substring:', e);
+              endTime = schedule.heure_fin.substring(0, 5);
+            }
+          }
+          
+          console.log('⏰ Final parsed times:', { startTime, endTime });
+          
+          // Handle teacher name - check if utilisateur exists
+          let teacherName = 'Unknown';
+          if (schedule.enseignant) {
+            if (schedule.enseignant.utilisateur) {
+              teacherName = `${schedule.enseignant.utilisateur.nom} ${schedule.enseignant.utilisateur.prenom}`;
+            } else if (schedule.enseignant.nom && schedule.enseignant.prenom) {
+              teacherName = `${schedule.enseignant.nom} ${schedule.enseignant.prenom}`;
+            }
+          }
+          
+          const sessionData = {
             id: schedule.id,
             subject: schedule.matiere?.nom || 'Unknown',
-            teacher: schedule.enseignant ? `${schedule.enseignant.nom} ${schedule.enseignant.prenom}` : 'Unknown',
-            room: schedule.salle?.code || 'Unknown',
+            teacher: teacherName,
+            room: schedule.salle?.nom || schedule.salle?.code || 'Unknown',
             startTime: startTime,
             endTime: endTime,
             group: schedule.groupe?.nom || ''
-          });
+          };
+          
+          console.log('Adding session to timetable:', dayName, sessionData);
+          timetable[dayName].push(sessionData);
         }
       });
 
@@ -302,10 +380,16 @@ class TimetableAPIClient {
    * Convert date to French day name
    */
   private getDayNameFromDate(dateStr: string): string | null {
-    const date = new Date(dateStr);
+    // Parse date in UTC to avoid timezone issues
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     const dayIndex = date.getDay();
     const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    return days[dayIndex] === 'Dimanche' ? null : days[dayIndex];
+    const dayName = days[dayIndex];
+    
+    console.log(`📅 Date conversion: ${dateStr} (${year}-${month}-${day}) -> day ${dayIndex} -> ${dayName}`);
+    
+    return dayName === 'Dimanche' ? null : dayName;
   }
 
   /**

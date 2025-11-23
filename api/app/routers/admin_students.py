@@ -24,6 +24,15 @@ class StudentResponse(BaseModel):
         from_attributes = True
 
 
+class StudentUpdate(BaseModel):
+    nom: Optional[str] = None
+    prenom: Optional[str] = None
+    email: Optional[str] = None
+    id_groupe: Optional[str] = None
+    id_specialite: Optional[str] = None
+    id_niveau: Optional[str] = None
+
+
 @router.get("/", response_model=List[StudentResponse])
 async def get_all_students(
     prisma: Prisma = Depends(get_prisma),
@@ -90,6 +99,65 @@ async def get_student(
         
         if not student:
             raise HTTPException(status_code=404, detail="Student not found")
+        
+        return {
+            "id": student.id,
+            "firstName": student.prenom,
+            "lastName": student.nom,
+            "email": student.email,
+            "groupe": {
+                "id": student.groupe.id,
+                "nom": student.groupe.nom
+            } if student.groupe else None,
+            "specialite": {
+                "id": student.specialite.id,
+                "nom": student.specialite.nom
+            } if student.specialite else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{student_id}")
+async def update_student(
+    student_id: str,
+    data: StudentUpdate,
+    prisma: Prisma = Depends(get_prisma),
+    current_user = Depends(require_admin)
+):
+    """Update a student"""
+    try:
+        existing = await prisma.etudiant.find_unique(where={"id": student_id})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Student not found")
+        
+        update_data = {k: v for k, v in data.dict().items() if v is not None}
+        
+        student = await prisma.etudiant.update(
+            where={"id": student_id},
+            data=update_data,
+            include={
+                "groupe": True,
+                "specialite": True,
+                "niveau": True,
+                "utilisateur": True
+            }
+        )
+        
+        # Update user account if email/name changed
+        if data.email or data.nom or data.prenom:
+            user_update = {}
+            if data.email: user_update["email"] = data.email
+            if data.nom: user_update["nom"] = data.nom
+            if data.prenom: user_update["prenom"] = data.prenom
+            
+            await prisma.utilisateur.update_many(
+                where={"etudiant_id": student_id},
+                data=user_update
+            )
         
         return {
             "id": student.id,

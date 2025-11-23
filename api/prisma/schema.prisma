@@ -102,6 +102,7 @@ model Departement {
 
   specialites     Specialite[]
   enseignants     Enseignant[]
+  matieres        Matiere[] // Subjects in this department
   chefDepartement ChefDepartement?
   cours           Cours[] // Smart Classroom courses
 
@@ -116,7 +117,7 @@ model Specialite {
   updatedAt      DateTime @updatedAt
 
   departement Departement @relation(fields: [id_departement], references: [id], onDelete: Cascade)
-  niveaux     Niveau[]
+  niveaux     Niveau[] // A specialty has many levels
   etudiants   Etudiant[]
   matieres    Matiere[]
   cours       Cours[] // Smart Classroom courses
@@ -126,15 +127,16 @@ model Specialite {
 }
 
 model Niveau {
-  id            String   @id @default(cuid())
-  nom           String
-  id_specialite String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(cuid())
+  nom            String
+  id_specialite  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  specialite Specialite  @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
+  specialite Specialite @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
   groupes    Groupe[]
   etudiants  Etudiant[] // Students in this level
+  matieres   Matiere[] // Subjects for this level
   cours      Cours[] // Smart Classroom courses
 
   @@index([id_specialite])
@@ -234,22 +236,29 @@ model Etudiant {
 }
 
 model Matiere {
-  id            String   @id @default(cuid())
-  nom           String
-  coefficient   Float    @default(1.0) // Subject coefficient/weight
-  id_specialite String
-  id_enseignant String? // Make teacher optional
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(cuid())
+  nom            String
+  coefficient    Float    @default(1.0) // Subject coefficient/weight
+  semester       String?  // Semester (S1, S2, S3, S4, S5, S6)
+  id_departement String   // Required: Department
+  id_niveau      String   // Required: Level (1, 2, 3...)
+  id_specialite  String   // Required: Specialty (Level 1 = Tronc Commun, Level 2/3 = Specific)
+  id_enseignant  String?  // Optional: Assigned in schedule/timetable
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  specialite  Specialite    @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
-  enseignant  Enseignant?   @relation(fields: [id_enseignant], references: [id], onDelete: SetNull) // Make relation optional
+  departement Departement  @relation(fields: [id_departement], references: [id], onDelete: Cascade)
+  niveau      Niveau       @relation(fields: [id_niveau], references: [id], onDelete: Cascade)
+  specialite  Specialite   @relation(fields: [id_specialite], references: [id], onDelete: Cascade)
+  enseignant  Enseignant?  @relation(fields: [id_enseignant], references: [id], onDelete: SetNull)
   emploiTemps EmploiTemps[]
 
   // Grading system relations
   notes    Note[]
   moyennes Moyenne[]
 
+  @@index([id_departement])
+  @@index([id_niveau])
   @@index([id_specialite])
   @@index([id_enseignant])
   @@map("Subject")
@@ -292,7 +301,10 @@ model EmploiTemps {
 model Absence {
   id                   String        @id @default(cuid())
   id_etudiant          String
-  id_emploitemps       String
+  id_emploitemps       String?       // Optional - can be general absence
+  id_enseignant        String?       // Teacher who marked the absence
+  date_absence         DateTime?     // Date of absence (for general absences without schedule)
+  id_matiere           String?       // Subject (for general absences)
   motif                String? // reason for absence
   statut               AbsenceStatus @default(unjustified)
   justification_text   String? // student's justification text
@@ -303,11 +315,13 @@ model Absence {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
-  etudiant    Etudiant    @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
-  emploitemps EmploiTemps @relation(fields: [id_emploitemps], references: [id], onDelete: Cascade)
+  etudiant    Etudiant     @relation(fields: [id_etudiant], references: [id], onDelete: Cascade)
+  emploitemps EmploiTemps? @relation(fields: [id_emploitemps], references: [id], onDelete: Cascade)
 
   @@index([id_etudiant])
   @@index([id_emploitemps])
+  @@index([id_enseignant])
+  @@index([date_absence])
   @@index([statut])
   @@index([createdAt])
 }

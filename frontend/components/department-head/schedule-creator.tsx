@@ -64,6 +64,8 @@ export default function InteractiveTimetableCreator() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAllSessionsDialogOpen, setIsAllSessionsDialogOpen] = useState(false);
+  const [allSessions, setAllSessions] = useState<any[]>([]);
   const [selectedCell, setSelectedCell] = useState<CellSession | null>(null);
   const [editingSession, setEditingSession] = useState<EditingSession | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(() => TimetableAPI.getWeekStart());
@@ -124,11 +126,71 @@ export default function InteractiveTimetableCreator() {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('Loading schedule for group:', selectedGroup, 'week:', currentWeekStart);
+      
+      // Fetch sessions using TimetableAPI which uses the correct auth token
       const timetable = await TimetableAPI.getGroupWeeklySchedule(selectedGroup, currentWeekStart);
+      console.log('Timetable loaded:', timetable);
+      console.log('Timetable structure:');
+      Object.entries(timetable).forEach(([day, sessions]) => {
+        console.log(`  ${day}:`, sessions);
+        if (Array.isArray(sessions) && sessions.length > 0) {
+          sessions.forEach((s: any, i: number) => {
+            console.log(`    [${i}] ${s.startTime}-${s.endTime}: ${s.subject} (${s.teacher}, ${s.room})`);
+          });
+        }
+      });
+      
+      // Count total sessions
+      const totalSessions = Object.values(timetable).reduce((sum: number, sessions: any) => sum + sessions.length, 0);
+      console.log(`Total sessions loaded: ${totalSessions}`);
+      console.log('Complete timetable data:', JSON.stringify(timetable, null, 2));
+      
       setWeekSchedule({ timetable });
+      console.log('✅ weekSchedule state updated with', totalSessions, 'sessions');
+
     } catch (err) {
       console.error('Error loading schedule:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load schedule');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load schedule';
+      
+      // If authentication error, suggest re-login
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+        setError('Session expirée. Veuillez vous reconnecter.');
+      } else {
+        setError(`Erreur: ${errorMessage}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAllSessions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const authToken = localStorage.getItem('authToken');
+      if (!authToken) {
+        throw new Error('Vous devez être connecté');
+      }
+      
+      const response = await fetch('http://localhost:8000/department-head/timetable/schedules', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load sessions');
+      }
+
+      const sessions = await response.json();
+      setAllSessions(sessions);
+      setIsAllSessionsDialogOpen(true);
+    } catch (err) {
+      console.error('Error loading all sessions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load all sessions');
     } finally {
       setLoading(false);
     }
@@ -159,8 +221,8 @@ export default function InteractiveTimetableCreator() {
     
     setSelectedCell({ day, timeSlot });
     setIsDialogOpen(true);
-    setError(null);
-    setSuccess(null);
+    setError('');
+    setSuccess('');
   };
 
   const handleCreateSession = async () => {
@@ -178,27 +240,94 @@ export default function InteractiveTimetableCreator() {
       setLoading(true);
       setError(null);
 
-      const scheduleData = {
+      // Calculate the date for the selected day in the current week
+      const weekStart = new Date(currentWeekStart);
+      const dayOffset = DAYS_OF_WEEK.findIndex(d => d.id === selectedCell.day);
+      const sessionDate = new Date(weekStart);
+      sessionDate.setDate(weekStart.getDate() + dayOffset);
+      
+      const sessionData = {
+        date: sessionDate.toISOString().split('T')[0], // YYYY-MM-DD
+        start_time: selectedCell.timeSlot.start,
+        end_time: selectedCell.timeSlot.end,
         subject_id: sessionForm.subject_id,
         group_id: selectedGroup,
         teacher_id: sessionForm.teacher_id,
         room_id: sessionForm.room_id,
-        day_of_week: TimetableAPI.dayOfWeekToFrench(selectedCell.day),
-        start_time: selectedCell.timeSlot.start,
-        end_time: selectedCell.timeSlot.end,
-        recurrence: 'WEEKLY',  // Always create recurring schedules
+        recurrence: 'WEEKLY',
         semester_start: currentWeekStart,
         semester_end: sessionForm.semester_end
       };
 
-      const result = await TimetableAPI.createSemesterSchedule(scheduleData);
+      // Use department-head API endpoint with conflict detection
+      const authToken = localStorage.getItem('authToken');
+      if (!authToken) {
+        throw new Error('Vous devez être connecté pour créer une session');
+      }
+      
+      console.log('Using auth token for session creation');
+      
+      const response = await fetch('http://localhost:8000/department-head/timetable/schedules', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(sessionData)
+      });
 
-      if (result.success) {
-        setSuccess(`✅ Session créée avec succès!`);
+      const result = await response.json();
+
+      console.log('Server response:', result);
+
+      // Handle response with conflict information
+        if (result.conflicts && result.conflicts.length > 0) {
+          const conflictMsg = result.conflicts.map((c: any, i: number) => {
+            // Format conflict message based on reason
+            if (c.reason === 'room_occupied') {
+              return `${i + 1}. ${c.date}: Salle occupée par ${c.conflicting_subject} (${c.conflicting_group}) à ${c.time}`;
+            } else if (c.reason === 'teacher_occupied') {
+              return `${i + 1}. ${c.date}: Enseignant déjà occupé avec ${c.conflicting_subject} (${c.conflicting_group}) à ${c.time}`;
+            } else if (c.reason === 'group_occupied') {
+              return `${i + 1}. ${c.date}: Groupe déjà occupé avec ${c.conflicting_subject} (Prof: ${c.conflicting_teacher}) à ${c.time}`;
+            }
+            return `${i + 1}. ${c.date}: Conflit détecté à ${c.time}`;
+          }).join('\n');        if (result.created_count > 0) {
+          // Partial success - some created, some conflicts
+          alert(`⚠️ ${result.created_count} séances créées avec succès!\n\nMAIS ${result.conflicts.length} conflits détectés et ignorés:\n\n${conflictMsg}\n\nLes séances en conflit n'ont pas été créées.`);
+          setSuccess(`✅ ${result.created_count} séances créées (${result.conflicts.length} conflits ignorés)`);
+          setError(''); // Clear any errors
+          setIsDialogOpen(false);
+          // Reload schedule to show new sessions
+          console.log('Reloading schedule after partial success...');
+          // Small delay to ensure backend has committed
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await loadWeekSchedule();
+        } else {
+          // No sessions created - all conflicts
+          alert(`❌ AUCUNE séance créée!\n\n${result.conflicts.length} conflits détectés:\n\n${conflictMsg}\n\nVeuillez choisir une autre salle ou un autre horaire.`);
+          setError(''); // Clear error - we showed alert instead
+          setSuccess(''); // Clear any success message
+          // Don't close dialog - let user change their selection
+          return;
+        }
+      } else if (!response.ok) {
+        // Real error from server
+        throw new Error(result.detail || result.message || 'Erreur lors de la création');
+      } else {
+        // Complete success - no conflicts
+        setSuccess(`✅ ${result.created_count || 1} séance(s) créée(s) avec succès pour tout le semestre!`);
+        alert(`✅ ${result.created_count || 1} séance(s) créée(s) avec succès!`);
+        setError(''); // Clear any errors
         setIsDialogOpen(false);
+        // Reload schedule to show new sessions
+        console.log('Reloading schedule after complete success...');
+        // Small delay to ensure backend has committed
+        await new Promise(resolve => setTimeout(resolve, 500));
         await loadWeekSchedule();
       }
     } catch (err) {
+      console.error('Creation error:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors de la création');
     } finally {
       setLoading(false);
@@ -279,16 +408,43 @@ export default function InteractiveTimetableCreator() {
   };
 
   const getCellSession = (day: DayOfWeek, timeSlot: typeof TIME_SLOTS[0]) => {
-    if (!weekSchedule?.timetable) return null;
+    if (!weekSchedule?.timetable) {
+      return null;
+    }
     
     const dayLabel = day; // DayOfWeek is already in French
     const daySessions = weekSchedule.timetable[dayLabel];
     
-    if (!daySessions || !Array.isArray(daySessions)) return null;
+    if (!daySessions || !Array.isArray(daySessions)) {
+      return null;
+    }
     
-    return daySessions.find((session: any) => 
-      session.startTime === timeSlot.start && session.endTime === timeSlot.end
-    );
+    const session = daySessions.find((session: any) => {
+      // More flexible time matching - handle both HH:MM and H:MM formats
+      const sessionStart = session.startTime?.substring(0, 5); // Get first 5 chars (HH:MM)
+      const sessionEnd = session.endTime?.substring(0, 5);
+      const slotStart = timeSlot.start;
+      const slotEnd = timeSlot.end;
+      
+      const match = sessionStart === slotStart && sessionEnd === slotEnd;
+      
+      // Log matching attempt for this specific session
+      console.log(`🔍 Matching ${dayLabel} ${slotStart}-${slotEnd} against session:`, {
+        sessionStart,
+        sessionEnd,
+        slotStart,
+        slotEnd,
+        startMatch: sessionStart === slotStart,
+        endMatch: sessionEnd === slotEnd,
+        bothMatch: match,
+        sessionId: session.id,
+        subject: session.subject
+      });
+      
+      return match;
+    });
+    
+    return session;
   };
 
   if (!resources) {
@@ -307,13 +463,26 @@ export default function InteractiveTimetableCreator() {
       {/* Header */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl flex items-center gap-2">
-            <Calendar className="h-6 w-6" />
-            Créer l'Emploi du Temps
-          </CardTitle>
-          <CardDescription>
-            Cliquez sur une case pour créer un cours pour la semaine en cours
-          </CardDescription>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Calendar className="h-6 w-6" />
+                Créer l'Emploi du Temps
+              </CardTitle>
+              <CardDescription>
+                Cliquez sur une case pour créer un cours pour la semaine en cours
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={loadAllSessions}
+              disabled={loading}
+              className="flex items-center gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              Voir toutes les séances
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 
@@ -322,14 +491,6 @@ export default function InteractiveTimetableCreator() {
         <Alert className="border-green-200 bg-green-50">
           <CheckCircle className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">{success}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
@@ -649,6 +810,84 @@ export default function InteractiveTimetableCreator() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* All Sessions Dialog */}
+      <Dialog open={isAllSessionsDialogOpen} onOpenChange={setIsAllSessionsDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Toutes les Séances Créées</DialogTitle>
+            <DialogDescription>
+              Liste complète de toutes les séances d'emploi du temps créées pour votre département
+            </DialogDescription>
+          </DialogHeader>
+
+          {allSessions.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p>Aucune séance trouvée</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-sm text-gray-600">
+                  Total: <span className="font-bold text-lg">{allSessions.length}</span> séances
+                </p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 p-2 text-left text-sm font-semibold">Date</th>
+                      <th className="border border-gray-300 p-2 text-left text-sm font-semibold">Horaire</th>
+                      <th className="border border-gray-300 p-2 text-left text-sm font-semibold">Groupe</th>
+                      <th className="border border-gray-300 p-2 text-left text-sm font-semibold">Niveau/Spécialité</th>
+                      <th className="border border-gray-300 p-2 text-left text-sm font-semibold">Matière</th>
+                      <th className="border border-gray-300 p-2 text-left text-sm font-semibold">Enseignant</th>
+                      <th className="border border-gray-300 p-2 text-left text-sm font-semibold">Salle</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allSessions.map((session: any, index: number) => (
+                      <tr key={session.id || index} className="hover:bg-gray-50">
+                        <td className="border border-gray-300 p-2 text-sm">
+                          {new Date(session.date).toLocaleDateString('fr-FR', {
+                            weekday: 'short',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                          })}
+                        </td>
+                        <td className="border border-gray-300 p-2 text-sm whitespace-nowrap">
+                          {session.heure_debut} - {session.heure_fin}
+                        </td>
+                        <td className="border border-gray-300 p-2 text-sm font-medium">
+                          {session.groupe?.nom || 'N/A'}
+                        </td>
+                        <td className="border border-gray-300 p-2 text-sm">
+                          <div>{session.groupe?.niveau?.nom || 'N/A'}</div>
+                          <div className="text-xs text-gray-600">
+                            {session.groupe?.niveau?.specialite?.nom || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="border border-gray-300 p-2 text-sm">
+                          {session.matiere?.nom || 'N/A'}
+                        </td>
+                        <td className="border border-gray-300 p-2 text-sm">
+                          {session.enseignant?.utilisateur?.nom} {session.enseignant?.utilisateur?.prenom}
+                        </td>
+                        <td className="border border-gray-300 p-2 text-sm">
+                          {session.salle?.nom || 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

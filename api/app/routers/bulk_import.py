@@ -106,15 +106,22 @@ async def bulk_import_students(
                 # Get the specialite from the groupe
                 groupe_with_specialite = await prisma.groupe.find_unique(
                     where={"id": groupe.id},
-                    include={"niveau": {"include": {"specialite": True}}}
+                    include={
+                        "niveau": {
+                            "include": {
+                                "specialite": True
+                            }
+                        }
+                    }
                 )
                 
-                if not groupe_with_specialite or not groupe_with_specialite.niveau or not groupe_with_specialite.niveau.specialite:
+                if not groupe_with_specialite or not groupe_with_specialite.niveau or not groupe_with_specialite.niveau.id_specialite:
                     results["skipped"] += 1
                     results["errors"].append(f"Row {index + 2}: Could not find specialite for group '{row['groupe_nom']}'")
                     continue
                 
-                specialite_id = groupe_with_specialite.niveau.specialite.id
+                # Get specialty from niveau
+                specialite_id = groupe_with_specialite.niveau.id_specialite
                 niveau_id = groupe_with_specialite.niveau.id
                 
                 # Create user account

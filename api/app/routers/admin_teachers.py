@@ -23,6 +23,14 @@ class TeacherResponse(BaseModel):
         from_attributes = True
 
 
+class TeacherUpdate(BaseModel):
+    nom: Optional[str] = None
+    prenom: Optional[str] = None
+    email: Optional[str] = None
+    id_departement: Optional[str] = None
+    image_url: Optional[str] = None
+
+
 @router.get("/", response_model=List[TeacherResponse])
 async def get_all_teachers(
     prisma: Prisma = Depends(get_prisma),
@@ -99,6 +107,59 @@ async def get_teacher(
                     "nom": m.nom
                 } for m in teacher.matieres
             ] if teacher.matieres else []
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{teacher_id}")
+async def update_teacher(
+    teacher_id: str,
+    data: TeacherUpdate,
+    prisma: Prisma = Depends(get_prisma),
+    current_user = Depends(require_admin)
+):
+    """Update a teacher"""
+    try:
+        existing = await prisma.enseignant.find_unique(where={"id": teacher_id})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        
+        update_data = {k: v for k, v in data.dict().items() if v is not None}
+        
+        teacher = await prisma.enseignant.update(
+            where={"id": teacher_id},
+            data=update_data,
+            include={
+                "departement": True,
+                "utilisateur": True
+            }
+        )
+        
+        # Update user account if email/name changed
+        if data.email or data.nom or data.prenom:
+            user_update = {}
+            if data.email: user_update["email"] = data.email
+            if data.nom: user_update["nom"] = data.nom
+            if data.prenom: user_update["prenom"] = data.prenom
+            
+            await prisma.utilisateur.update_many(
+                where={"enseignant_id": teacher_id},
+                data=user_update
+            )
+        
+        return {
+            "id": teacher.id,
+            "firstName": teacher.prenom,
+            "lastName": teacher.nom,
+            "email": teacher.email,
+            "departement": {
+                "id": teacher.departement.id,
+                "nom": teacher.departement.nom
+            } if teacher.departement else None
         }
         
     except HTTPException:

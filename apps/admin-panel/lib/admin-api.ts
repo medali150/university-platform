@@ -462,7 +462,6 @@ export const adminDeptHeadApi = {
       firstName: string;
       lastName: string;
       email: string;
-      login: string;
       password: string;
       role: 'DEPARTMENT_HEAD';
     },

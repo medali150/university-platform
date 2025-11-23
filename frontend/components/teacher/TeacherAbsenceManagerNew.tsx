@@ -64,12 +64,16 @@ export default function TeacherAbsenceManagerNew() {
   const searchParams = useSearchParams()
   const preSelectedGroupId = searchParams.get('group')
   
-  const [activeTab, setActiveTab] = useState(preSelectedGroupId ? 'students' : 'groups')
+  const [activeTab, setActiveTab] = useState(preSelectedGroupId ? 'students' : 'quick-mark')
   const [groupsData, setGroupsData] = useState<TeacherGroupsResponse | null>(null)
   const [todaySchedule, setTodaySchedule] = useState<TeacherSchedule[]>([])
   const [selectedGroup, setSelectedGroup] = useState<TeacherGroup | null>(null)
   const [selectedSchedule, setSelectedSchedule] = useState<GroupSchedule | null>(null)
   const [groupStudents, setGroupStudents] = useState<GroupStudent[]>([])
+  const [allStudents, setAllStudents] = useState<any[]>([])
+  const [teacherSubjects, setTeacherSubjects] = useState<any[]>([])
+  const [selectedSubject, setSelectedSubject] = useState<string>('')
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set())
@@ -84,8 +88,31 @@ export default function TeacherAbsenceManagerNew() {
           TeacherAPI.getTodaySchedule()
         ])
         
+        console.log('Groups data loaded:', groupsResponse)
+        console.log('Schedule data loaded:', scheduleResponse)
+        
         setGroupsData(groupsResponse)
         setTodaySchedule(scheduleResponse)
+        
+        // Fetch all students and subjects for quick marking
+        try {
+          const authToken = localStorage.getItem('authToken')
+          const response = await fetch('http://localhost:8000/absences/teacher/students', {
+            headers: {
+              'Authorization': `Bearer ${authToken}`
+            }
+          })
+          if (response.ok) {
+            const data = await response.json()
+            console.log('All students loaded:', data)
+            setAllStudents(data.students || [])
+            setTeacherSubjects(data.subjects || [])
+          } else {
+            console.error('Failed to fetch students:', response.status)
+          }
+        } catch (err) {
+          console.error('Error fetching all students:', err)
+        }
         
         // If there's a pre-selected group, load it
         if (preSelectedGroupId && groupsResponse.groups) {
@@ -131,36 +158,62 @@ export default function TeacherAbsenceManagerNew() {
   }
 
   const handleMarkAbsences = async () => {
-    if (!selectedSchedule || selectedStudents.size === 0) return
+    if (selectedStudents.size === 0) return
 
     setIsMarkingAbsence(true)
     try {
+      const authToken = localStorage.getItem('authToken')
+      
       // Mark absences for each selected student
-      const promises = Array.from(selectedStudents).map(studentId =>
-        TeacherAPI.markAbsence({
-          student_id: studentId,
-          schedule_id: selectedSchedule.id,
-          is_absent: true,
-          motif: absenceMotif
+      const promises = Array.from(selectedStudents).map(async studentId => {
+        const payload: any = {
+          studentId: studentId,
+          reason: absenceMotif,
+          status: 'unjustified'
+        }
+        
+        // If we have a schedule selected, use it (session-based)
+        if (selectedSchedule) {
+          payload.scheduleId = selectedSchedule.id
+        } else {
+          // General absence without schedule
+          payload.subjectId = selectedSubject || null
+          payload.absenceDate = new Date(selectedDate).toISOString()
+        }
+        
+        const response = await fetch('http://localhost:8000/absences/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify(payload)
         })
-      )
+        
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.detail || 'Failed to mark absence')
+        }
+        
+        return response.json()
+      })
 
       await Promise.all(promises)
       
       // Show success message
-      alert(`Absences marquées pour ${selectedStudents.size} étudiant(s)`)
+      alert(`✅ Absences marquées pour ${selectedStudents.size} étudiant(s)`)
       
       setSelectedStudents(new Set())
       setAbsenceMotif('')
       
-      // Refresh student data
-      if (selectedGroup) {
+      // Refresh student data if in schedule mode
+      if (selectedGroup && selectedSchedule) {
         const students = await TeacherAPI.getGroupStudents(selectedGroup.id, selectedSchedule.id)
         setGroupStudents(students.students || [])
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error marking absences:', error)
-      alert('Erreur lors de la création des absences')
+      alert('❌ Erreur: ' + (error.message || 'Erreur lors de la création des absences'))
     } finally {
       setIsMarkingAbsence(false)
     }
@@ -194,12 +247,149 @@ export default function TeacherAbsenceManagerNew() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs value={activeTab} onValueChange={(tab) => {
+        setActiveTab(tab)
+        setSearchTerm('') // Clear search when switching tabs
+      }}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="quick-mark">Marquer Absence</TabsTrigger>
           <TabsTrigger value="groups">Mes Groupes</TabsTrigger>
-          <TabsTrigger value="students">Étudiants</TabsTrigger>
+          <TabsTrigger value="students">Par Séance</TabsTrigger>
           <TabsTrigger value="schedule">Emploi du Temps</TabsTrigger>
         </TabsList>
+
+        {/* Quick Mark Tab - Mark any student absent anytime */}
+        <TabsContent value="quick-mark" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Marquer une Absence</CardTitle>
+              <CardDescription>
+                Marquez des étudiants absents sans sélectionner de séance spécifique
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Matière (Optionnel)</Label>
+                  <select
+                    id="subject"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2"
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                  >
+                    <option value="">-- Absence Générale --</option>
+                    {teacherSubjects.map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.nom} {subject.specialite ? `(${subject.specialite})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="absence-date">Date d'Absence</Label>
+                  <Input
+                    id="absence-date"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="motif">Motif (Optionnel)</Label>
+                <Textarea
+                  id="motif"
+                  placeholder="Raison de l'absence..."
+                  value={absenceMotif}
+                  onChange={(e) => setAbsenceMotif(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Sélectionner les Étudiants</Label>
+                  <div className="relative flex-1 max-w-sm ml-4">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher par nom..."
+                      className="pl-8"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="text-center p-8 border rounded-lg">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Chargement des étudiants...</p>
+                  </div>
+                ) : allStudents.length === 0 ? (
+                  <div className="text-center p-8 border rounded-lg text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="font-medium">Aucun étudiant trouvé</p>
+                    <p className="text-sm mt-2">
+                      Vous n'avez pas d'étudiants assignés. Contactez votre département.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border rounded-lg max-h-96 overflow-y-auto">
+                    {allStudents
+                      .filter(student =>
+                        student.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        student.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        student.email.toLowerCase().includes(searchTerm.toLowerCase())
+                      )
+                      .map((student) => (
+                        <div
+                          key={student.id}
+                          className="flex items-center space-x-3 p-3 hover:bg-accent border-b last:border-0"
+                        >
+                          <Checkbox
+                            id={`quick-${student.id}`}
+                            checked={selectedStudents.has(student.id)}
+                            onCheckedChange={(checked) =>
+                              handleStudentSelect(student.id, checked as boolean)
+                            }
+                          />
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback>
+                              {student.prenom[0]}{student.nom[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="font-medium">
+                              {student.prenom} {student.nom}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {student.groupe.nom} - {student.groupe.specialite}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  {selectedStudents.size} étudiant(s) sélectionné(s)
+                </div>
+                <Button
+                  onClick={handleMarkAbsences}
+                  disabled={isMarkingAbsence || selectedStudents.size === 0}
+                  className="gap-2"
+                >
+                  <UserX className="h-4 w-4" />
+                  {isMarkingAbsence ? 'Enregistrement...' : 'Marquer Absent(s)'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Groups Tab */}
         <TabsContent value="groups" className="space-y-4">
@@ -222,14 +412,24 @@ export default function TeacherAbsenceManagerNew() {
                   />
                 </div>
 
-                <div className="grid gap-4">
-                  {filteredGroups.length === 0 ? (
-                    <div className="text-center p-8 text-muted-foreground">
-                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Aucun groupe trouvé</p>
-                    </div>
-                  ) : (
-                    filteredGroups.map((group) => (
+                {loading ? (
+                  <div className="text-center p-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Chargement des groupes...</p>
+                  </div>
+                ) : filteredGroups.length === 0 ? (
+                  <div className="text-center p-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="font-medium">Aucun groupe trouvé</p>
+                    <p className="text-sm mt-2">
+                      {groupsData?.groups?.length === 0 
+                        ? "Vous n'avez pas encore de groupes assignés. Contactez votre département."
+                        : "Aucun groupe ne correspond à votre recherche."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {filteredGroups.map((group) => (
                       <Card key={group.id} className="cursor-pointer hover:bg-accent transition-colors">
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
@@ -252,9 +452,9 @@ export default function TeacherAbsenceManagerNew() {
                           </div>
                         </CardContent>
                       </Card>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -299,7 +499,7 @@ export default function TeacherAbsenceManagerNew() {
                               Marquer Absences ({selectedStudents.size})
                             </Button>
                           </DialogTrigger>
-                          <DialogContent>
+                          <DialogContent className="max-w-md">
                             <DialogHeader>
                               <DialogTitle>Marquer les Absences</DialogTitle>
                               <DialogDescription>
@@ -307,7 +507,45 @@ export default function TeacherAbsenceManagerNew() {
                               </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4">
-                              <div>
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                  <Label htmlFor="absence-date-session">Date d'Absence</Label>
+                                  <Input
+                                    id="absence-date-session"
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                  />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <Label htmlFor="absence-time">Heure</Label>
+                                  <Input
+                                    id="absence-time"
+                                    type="time"
+                                    className="w-full"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="subject-session">Matière</Label>
+                                <select
+                                  id="subject-session"
+                                  className="w-full rounded-md border border-input bg-background px-3 py-2"
+                                  value={selectedSubject}
+                                  onChange={(e) => setSelectedSubject(e.target.value)}
+                                >
+                                  <option value="">-- Sélectionner une matière --</option>
+                                  {teacherSubjects.map((subject) => (
+                                    <option key={subject.id} value={subject.id}>
+                                      {subject.nom}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="space-y-2">
                                 <Label htmlFor="motif">Motif (optionnel)</Label>
                                 <Textarea
                                   id="motif"
@@ -315,13 +553,14 @@ export default function TeacherAbsenceManagerNew() {
                                   onChange={(e) => setAbsenceMotif(e.target.value)}
                                   placeholder="Raison de l'absence..."
                                   className="resize-none"
+                                  rows={3}
                                 />
                               </div>
                             </div>
                             <DialogFooter>
                               <Button
                                 onClick={handleMarkAbsences}
-                                disabled={isMarkingAbsence || !selectedSchedule}
+                                disabled={isMarkingAbsence}
                               >
                                 {isMarkingAbsence ? 'Enregistrement...' : 'Confirmer'}
                               </Button>
@@ -330,17 +569,6 @@ export default function TeacherAbsenceManagerNew() {
                         </Dialog>
                       )}
                     </div>
-
-                    {!selectedSchedule && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4 text-amber-600" />
-                          <p className="text-sm text-amber-800">
-                            Sélectionnez un cours dans l'onglet "Emploi du Temps" pour marquer les absences
-                          </p>
-                        </div>
-                      </div>
-                    )}
 
                     <div className="grid gap-3">
                       {loading ? (
@@ -360,7 +588,6 @@ export default function TeacherAbsenceManagerNew() {
                               onCheckedChange={(checked) => 
                                 handleStudentSelect(student.id, checked as boolean)
                               }
-                              disabled={!selectedSchedule}
                             />
                             <Avatar className="h-10 w-10">
                               <AvatarImage src={`/placeholder-avatar.png`} alt={student.nom} />

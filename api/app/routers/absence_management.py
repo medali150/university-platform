@@ -32,54 +32,93 @@ async def create_absence(
     prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_role(["TEACHER", "DEPARTMENT_HEAD", "ADMIN"]))
 ):
-    """Teacher marks student absence during class"""
+    """Teacher marks student absence - can be for a specific session or general absence"""
     try:
-        # Validate that the schedule exists and belongs to the teacher (if teacher role)
-        schedule = await prisma.emploitemps.find_unique(
-            where={"id": absence_data.scheduleId},
-            include={
-                "matiere": {
-                    "include": {
-                        "specialite": {
-                            "include": {"departement": True}
+        schedule = None
+        subject = None
+        absence_date = absence_data.absenceDate or datetime.now()
+        
+        # If scheduleId is provided, validate it (session-based absence)
+        if absence_data.scheduleId:
+            schedule = await prisma.emploitemps.find_unique(
+                where={"id": absence_data.scheduleId},
+                include={
+                    "matiere": {
+                        "include": {
+                            "specialite": {
+                                "include": {"departement": True}
+                            }
                         }
-                    }
-                },
-                "enseignant": {
-                    "include": {"utilisateur": True}
-                },
-                "groupe": True,
-                "salle": True
-            }
-        )
-        
-        if not schedule:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Emploi du temps non trouvé"
+                    },
+                    "enseignant": {
+                        "include": {"utilisateur": True}
+                    },
+                    "groupe": True,
+                    "salle": True
+                }
             )
+            
+            if not schedule:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Emploi du temps non trouvé"
+                )
+            
+            absence_date = schedule.date
+            subject = schedule.matiere
+            
+            # If current user is a teacher, validate they teach this class
+            if current_user.role == "TEACHER":
+                user_with_teacher = await prisma.utilisateur.find_unique(
+                    where={"id": current_user.id},
+                    include={"enseignant": True}
+                )
+                
+                if not user_with_teacher or not user_with_teacher.enseignant:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Profil enseignant non trouvé"
+                    )
+                
+                if schedule.id_enseignant != user_with_teacher.enseignant.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Vous ne pouvez marquer les absences que pour vos propres cours"
+                    )
         
-        # If current user is a teacher, validate they teach this class
-        if current_user.role == "TEACHER":
-            # Get the teacher via the user's enseignant_id
+        # For general absence without schedule
+        else:
+            # Get teacher profile
             user_with_teacher = await prisma.utilisateur.find_unique(
                 where={"id": current_user.id},
                 include={"enseignant": True}
             )
             
-            if not user_with_teacher or not user_with_teacher.enseignant:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Profil enseignant non trouvé"
-                )
+            if current_user.role == "TEACHER":
+                if not user_with_teacher or not user_with_teacher.enseignant:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Profil enseignant non trouvé"
+                    )
             
-            if schedule.id_enseignant != user_with_teacher.enseignant.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Vous ne pouvez marquer les absences que pour vos propres cours"
+            # If subjectId is provided, validate it
+            if absence_data.subjectId:
+                subject = await prisma.matiere.find_unique(
+                    where={"id": absence_data.subjectId},
+                    include={
+                        "specialite": {
+                            "include": {"departement": True}
+                        }
+                    }
                 )
+                
+                if not subject:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Matière non trouvée"
+                    )
         
-        # Validate that the student exists and belongs to the class group
+        # Validate that the student exists
         student = await prisma.etudiant.find_unique(
             where={"id": absence_data.studentId},
             include={
@@ -95,31 +134,46 @@ async def create_absence(
                 detail="Étudiant non trouvé"
             )
         
-        if student.id_groupe != schedule.id_groupe:
+        # For session-based absence, validate student belongs to the group
+        if schedule and student.id_groupe != schedule.id_groupe:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="L'étudiant n'appartient pas au groupe de cette classe"
             )
         
         # Check for duplicate absence record
-        existing_absence = await prisma.absence.find_first(
-            where={
-                "id_etudiant": absence_data.studentId,
-                "id_emploitemps": absence_data.scheduleId
-            }
-        )
-        
-        if existing_absence:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Une absence existe déjà pour cet étudiant et cette séance"
+        if absence_data.scheduleId:
+            existing_absence = await prisma.absence.find_first(
+                where={
+                    "id_etudiant": absence_data.studentId,
+                    "id_emploitemps": absence_data.scheduleId
+                }
             )
+            
+            if existing_absence:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Une absence existe déjà pour cet étudiant et cette séance"
+                )
+        
+        # Get teacher ID for tracking
+        teacher_id = None
+        if current_user.role == "TEACHER":
+            user_with_teacher = await prisma.utilisateur.find_unique(
+                where={"id": current_user.id},
+                include={"enseignant": True}
+            )
+            if user_with_teacher and user_with_teacher.enseignant:
+                teacher_id = user_with_teacher.enseignant.id
         
         # Create absence record
         absence = await prisma.absence.create(
             data={
                 "id_etudiant": absence_data.studentId,
                 "id_emploitemps": absence_data.scheduleId,
+                "id_enseignant": teacher_id,
+                "id_matiere": absence_data.subjectId,
+                "date_absence": absence_date,
                 "motif": absence_data.reason,
                 "statut": absence_data.status,
                 "createdAt": datetime.now(),
@@ -127,24 +181,46 @@ async def create_absence(
             }
         )
         
-        # Count total absences for this student in this subject
+        # Count total absences for this student
         total_absences = await prisma.absence.count(
-            where={
-                "id_etudiant": absence_data.studentId,
-                "emploiTemps": {
-                    "id_matiere": schedule.id_matiere
-                }
-            }
+            where={"id_etudiant": absence_data.studentId}
         )
+        
+        # Count absences in specific subject if available
+        subject_absences = 0
+        if subject:
+            if schedule:
+                subject_absences = await prisma.absence.count(
+                    where={
+                        "id_etudiant": absence_data.studentId,
+                        "emploiTemps": {
+                            "id_matiere": subject.id
+                        }
+                    }
+                )
+            elif absence_data.subjectId:
+                subject_absences = await prisma.absence.count(
+                    where={
+                        "id_etudiant": absence_data.studentId,
+                        "id_matiere": absence_data.subjectId
+                    }
+                )
         
         # Send notification to student about absence
         try:
+            if schedule:
+                notification_message = f"Vous avez été marqué absent au cours de {subject.nom} le {schedule.date.strftime('%d/%m/%Y')} à {schedule.heure_debut.strftime('%H:%M')}"
+            elif subject:
+                notification_message = f"Vous avez été marqué absent pour {subject.nom} le {absence_date.strftime('%d/%m/%Y')}"
+            else:
+                notification_message = f"Vous avez été marqué absent le {absence_date.strftime('%d/%m/%Y')}"
+            
             await create_notification(
                 prisma=prisma,
                 user_id=student.utilisateur.id,
                 notification_type="ABSENCE_MARKED",
                 title="Absence enregistrée",
-                message=f"Vous avez été marqué absent au cours de {schedule.matiere.nom} le {schedule.date.strftime('%d/%m/%Y')} à {schedule.heure_debut.strftime('%H:%M')}",
+                message=notification_message,
                 related_id=absence.id
             )
             logger.info(f"✅ Notification sent to student {student.utilisateur.email} for absence {absence.id}")
@@ -156,19 +232,24 @@ async def create_absence(
             from app.services.email_service import send_absence_notification_email
             
             # Get teacher name
-            teacher_name = f"{schedule.enseignant.utilisateur.prenom} {schedule.enseignant.utilisateur.nom}" if schedule.enseignant else "Enseignant"
+            teacher_name = "Enseignant"
+            if schedule and schedule.enseignant:
+                teacher_name = f"{schedule.enseignant.utilisateur.prenom} {schedule.enseignant.utilisateur.nom}"
             
             # Send email with absence count
+            subject_name = subject.nom if subject else "Cours général"
+            absence_date_str = schedule.date.strftime('%d/%m/%Y') if schedule else absence_date.strftime('%d/%m/%Y')
+            
             await send_absence_notification_email(
                 to_email=student.utilisateur.email,
                 student_name=f"{student.utilisateur.prenom} {student.utilisateur.nom}",
-                absence_count=total_absences,
-                subject_name=schedule.matiere.nom,
-                absence_date=schedule.date.strftime('%d/%m/%Y'),
+                absence_count=subject_absences if subject else total_absences,
+                subject_name=subject_name,
+                absence_date=absence_date_str,
                 teacher_name=teacher_name
             )
             
-            logger.info(f"✅ Email sent to {student.utilisateur.email} - Absence #{total_absences} in {schedule.matiere.nom}")
+            logger.info(f"✅ Email sent to {student.utilisateur.email} - Absence #{total_absences}")
             
         except Exception as e:
             logger.error(f"❌ Failed to send email: {e}")
@@ -180,6 +261,7 @@ async def create_absence(
             "notification_sent": True,
             "email_sent": True,
             "total_absences": total_absences,
+            "subject_absences": subject_absences,
             "warning_level": "eliminated" if total_absences >= 3 else ("critical" if total_absences == 2 else "normal")
         }
         
@@ -734,4 +816,156 @@ async def get_absence_statistics(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors de la récupération des statistiques: {str(e)}"
+        )
+
+@router.get("/teacher/students", response_model=dict)
+async def get_teacher_students(
+    prisma: Prisma = Depends(get_prisma),
+    current_user = Depends(require_role(["TEACHER", "DEPARTMENT_HEAD", "ADMIN"]))
+):
+    """Get all students that a teacher can mark absent (from their department/groups)"""
+    try:
+        # Get teacher profile
+        user_with_teacher = await prisma.utilisateur.find_unique(
+            where={"id": current_user.id},
+            include={"enseignant": True}
+        )
+        
+        if not user_with_teacher or not user_with_teacher.enseignant:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Profil enseignant non trouvé"
+            )
+        
+        teacher = user_with_teacher.enseignant
+        
+        # Get all students from groups where this teacher teaches
+        # Find all groups from the teacher's schedules
+        schedules = await prisma.emploitemps.find_many(
+            where={"id_enseignant": teacher.id},
+            include={
+                "groupe": {
+                    "include": {
+                        "niveau": {
+                            "include": {"specialite": True}
+                        }
+                    }
+                }
+            }
+        )
+        
+        # Get unique group IDs
+        group_ids = list(set([schedule.id_groupe for schedule in schedules]))
+        
+        # If no groups found from schedules, get all students from teacher's department
+        if not group_ids:
+            students = await prisma.etudiant.find_many(
+                where={
+                    "specialite": {
+                        "id_departement": teacher.id_departement
+                    }
+                },
+                include={
+                    "utilisateur": True,
+                    "groupe": {
+                        "include": {
+                            "niveau": {
+                                "include": {
+                                    "specialite": True
+                                }
+                            }
+                        }
+                    },
+                    "specialite": True
+                },
+                order=[
+                    {"groupe": {"nom": "asc"}},
+                    {"nom": "asc"},
+                    {"prenom": "asc"}
+                ]
+            )
+        else:
+            # Get students from the specific groups
+            students = await prisma.etudiant.find_many(
+                where={
+                    "id_groupe": {"in": group_ids}
+                },
+                include={
+                    "utilisateur": True,
+                    "groupe": {
+                        "include": {
+                            "niveau": {
+                                "include": {
+                                    "specialite": True
+                                }
+                            }
+                        }
+                    },
+                    "specialite": True
+                },
+                order=[
+                    {"groupe": {"nom": "asc"}},
+                    {"nom": "asc"},
+                    {"prenom": "asc"}
+                ]
+            )
+        
+        # Get teacher's subjects - include both assigned subjects and department subjects
+        subjects = await prisma.matiere.find_many(
+            where={
+                "OR": [
+                    {"id_enseignant": teacher.id},  # Subjects assigned to teacher
+                    {"id_departement": teacher.id_departement}  # All subjects in teacher's department
+                ]
+            },
+            include={
+                "specialite": True
+            },
+            order=[{"nom": "asc"}]
+        )
+        
+        # Format students for response
+        formatted_students = []
+        for student in students:
+            # Get specialty from niveau
+            specialite_nom = None
+            if student.groupe and student.groupe.niveau and student.groupe.niveau.specialite:
+                specialite_nom = student.groupe.niveau.specialite.nom
+            
+            formatted_students.append({
+                "id": student.id,
+                "nom": student.nom,
+                "prenom": student.prenom,
+                "email": student.email,
+                "groupe": {
+                    "id": student.groupe.id,
+                    "nom": student.groupe.nom,
+                    "niveau": student.groupe.niveau.nom if student.groupe.niveau else None,
+                    "specialite": specialite_nom
+                }
+            })
+        
+        # Format subjects for response
+        formatted_subjects = []
+        for subject in subjects:
+            formatted_subjects.append({
+                "id": subject.id,
+                "nom": subject.nom,
+                "specialite": subject.specialite.nom if subject.specialite else None
+            })
+        
+        return {
+            "students": formatted_students,
+            "subjects": formatted_subjects,
+            "total_students": len(formatted_students),
+            "total_subjects": len(formatted_subjects)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting teacher students: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la récupération des étudiants: {str(e)}"
         )

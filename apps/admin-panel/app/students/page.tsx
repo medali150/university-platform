@@ -893,16 +893,16 @@ function EditStudentModal({ student, onClose, onSubmit, loading }: EditStudentMo
               value={formData.groupId}
               onChange={(e) => setFormData(prev => ({ ...prev, groupId: e.target.value }))}
               disabled={loading || loadingGroups || !formData.levelId}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 text-gray-900"
               required
             >
-              <option value="">
+              <option value="" className="text-gray-500">
                 {loadingGroups ? 'Chargement...' : 
                  !formData.levelId ? 'Sélectionnez d\'abord un niveau' : 
                  'Sélectionnez un groupe'}
               </option>
               {Array.isArray(groups) && groups.map((group) => (
-                <option key={group.id} value={group.id}>
+                <option key={group.id} value={group.id} className="text-gray-900">
                   {group.name}
                 </option>
               ))}

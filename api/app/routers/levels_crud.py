@@ -2,13 +2,6 @@ from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
 from prisma import Prisma
 from app.db.prisma_client import get_prisma
-from app.schemas.level import (
-    LevelCreate, 
-    LevelUpdate, 
-    LevelResponse, 
-    LevelListResponse,
-    LevelDetailResponse
-)
 from app.core.deps import require_admin
 
 router = APIRouter(prefix="/admin/levels", tags=["Admin - Levels"])
@@ -25,47 +18,48 @@ async def get_levels(
 ):
     """Get all levels with pagination and filtering (Admin only)"""
     
-    # Build where clause for filtering
+    # Build where clause for filtering using direct relationship
     where_clause = {}
     if search:
-        where_clause["name"] = {"contains": search}
+        where_clause["nom"] = {"contains": search}
     if specialty_id:
-        where_clause["specialtyId"] = specialty_id
+        where_clause["id_specialite"] = specialty_id
     
     # Get total count
-    total = await prisma.level.count(where=where_clause)
+    total = await prisma.niveau.count(where=where_clause)
     
     # Calculate pagination
     skip = (page - 1) * page_size
     total_pages = (total + page_size - 1) // page_size
     
     # Get levels with relations
-    levels = await prisma.level.find_many(
+    levels = await prisma.niveau.find_many(
         where=where_clause,
         include={
-            "specialty": {
-                "include": {"department": True}
+            "specialite": {
+                "include": {
+                    "departement": True
+                }
             }
         },
         skip=skip,
         take=page_size,
-        order={"name": "asc"}
+        order={"nom": "asc"}
     )
     
     return {
         "levels": [
             {
                 "id": level.id,
-                "name": level.name,
-                "specialtyId": level.specialtyId,
+                "name": level.nom,
                 "specialty": {
-                    "id": level.specialty.id if level.specialty else None,
-                    "name": level.specialty.name if level.specialty else None,
+                    "id": level.specialite.id,
+                    "name": level.specialite.nom,
                     "department": {
-                        "id": level.specialty.department.id if level.specialty and level.specialty.department else None,
-                        "name": level.specialty.department.name if level.specialty and level.specialty.department else None
-                    } if level.specialty and level.specialty.department else None
-                } if level.specialty else None,
+                        "id": level.specialite.departement.id,
+                        "name": level.specialite.departement.nom
+                    } if level.specialite.departement else None
+                } if level.specialite else None,
                 "createdAt": level.createdAt.isoformat() if level.createdAt else None,
                 "updatedAt": level.updatedAt.isoformat() if level.updatedAt else None
             }
@@ -78,236 +72,6 @@ async def get_levels(
     }
 
 
-@router.get("/{level_id}", response_model=LevelDetailResponse)
-async def get_level(
-    level_id: str,
-    prisma: Prisma = Depends(get_prisma),
-    current_user = Depends(require_admin)
-):
-    """Get a specific level by ID (Admin only)"""
-    level = await prisma.level.find_unique(
-        where={"id": level_id},
-        include={
-            "specialty": {
-                "include": {"department": True}
-            },
-            "groups": True,
-            "subjects": {
-                "include": {
-                    "teacher": {
-                        "include": {"user": True}
-                    }
-                }
-            }
-        }
-    )
-    
-    if not level:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Level not found"
-        )
-    
-    return level
-
-
-@router.post("/", response_model=LevelResponse, status_code=status.HTTP_201_CREATED)
-async def create_level(
-    level_data: LevelCreate,
-    prisma: Prisma = Depends(get_prisma),
-    current_user = Depends(require_admin)
-):
-    """Create a new level (Admin only)"""
-    
-    # Verify that specialty exists
-    specialty = await prisma.specialty.find_unique(where={"id": level_data.specialtyId})
-    if not specialty:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Specialty not found"
-        )
-    
-    # Check if level with same name already exists for this specialty
-    existing_level = await prisma.level.find_first(
-        where={
-            "name": level_data.name,
-            "specialtyId": level_data.specialtyId
-        }
-    )
-    if existing_level:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A level with this name already exists for this specialty"
-        )
-    
-    # Create the level
-    level = await prisma.level.create(
-        data={
-            "name": level_data.name,
-            "specialtyId": level_data.specialtyId
-        },
-        include={
-            "specialty": {
-                "include": {"department": True}
-            }
-        }
-    )
-    
-    return level
-
-
-@router.put("/{level_id}", response_model=LevelResponse)
-async def update_level(
-    level_id: str,
-    level_data: LevelUpdate,
-    prisma: Prisma = Depends(get_prisma),
-    current_user = Depends(require_admin)
-):
-    """Update a level (Admin only)"""
-    
-    # Check if level exists
-    existing_level = await prisma.level.find_unique(where={"id": level_id})
-    if not existing_level:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Level not found"
-        )
-    
-    # Prepare update data
-    update_data = {}
-    
-    # Validate and add fields to update
-    if level_data.name is not None:
-        # Check for duplicate name in the same specialty
-        specialty_id = level_data.specialtyId if level_data.specialtyId is not None else existing_level.specialtyId
-        duplicate = await prisma.level.find_first(
-            where={
-                "name": level_data.name,
-                "specialtyId": specialty_id,
-                "id": {"not": level_id}
-            }
-        )
-        if duplicate:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A level with this name already exists for this specialty"
-            )
-        update_data["name"] = level_data.name
-    
-    if level_data.specialtyId is not None:
-        # Verify that specialty exists
-        specialty = await prisma.specialty.find_unique(where={"id": level_data.specialtyId})
-        if not specialty:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Specialty not found"
-            )
-        update_data["specialtyId"] = level_data.specialtyId
-    
-    if not update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No valid fields to update"
-        )
-    
-    # Update the level
-    level = await prisma.level.update(
-        where={"id": level_id},
-        data=update_data,
-        include={
-            "specialty": {
-                "include": {"department": True}
-            }
-        }
-    )
-    
-    return level
-
-
-@router.delete("/{level_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_level(
-    level_id: str,
-    prisma: Prisma = Depends(get_prisma),
-    current_user = Depends(require_admin)
-):
-    """Delete a level (Admin only)"""
-    
-    # Check if level exists
-    level = await prisma.level.find_unique(where={"id": level_id})
-    if not level:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Level not found"
-        )
-    
-    # Check if level has associated groups
-    group_count = await prisma.group.count(where={"levelId": level_id})
-    if group_count > 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete level. It has {group_count} associated groups. Please remove these groups first."
-        )
-    
-    # Check if level has associated subjects
-    subject_count = await prisma.subject.count(where={"levelId": level_id})
-    if subject_count > 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete level. It has {subject_count} associated subjects. Please remove these subjects first."
-        )
-    
-    # Check if level has associated students
-    student_count = await prisma.student.count(where={
-        "group": {
-            "levelId": level_id
-        }
-    })
-    if student_count > 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete level. It has {student_count} students in associated groups. Please move these students first."
-        )
-    
-    # Delete the level
-    await prisma.level.delete(where={"id": level_id})
-    
-    return None
-
-
-@router.get("/{level_id}/subjects")
-async def get_level_subjects(
-    level_id: str,
-    prisma: Prisma = Depends(get_prisma),
-    current_user = Depends(require_admin)
-):
-    """Get all subjects for a specific level (Admin only)"""
-    
-    # Check if level exists
-    level = await prisma.level.find_unique(where={"id": level_id})
-    if not level:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Level not found"
-        )
-    
-    # Get subjects
-    subjects = await prisma.subject.find_many(
-        where={"levelId": level_id},
-        include={
-            "teacher": {
-                "include": {"user": True, "department": True}
-            }
-        },
-        order={"name": "asc"}
-    )
-    
-    return {
-        "subjects": subjects,
-        "level": level,
-        "total": len(subjects)
-    }
-
-
 @router.get("/{level_id}/groups")
 async def get_level_groups(
     level_id: str,
@@ -316,27 +80,53 @@ async def get_level_groups(
 ):
     """Get all groups for a specific level (Admin only)"""
     
-    # Check if level exists
-    level = await prisma.level.find_unique(where={"id": level_id})
-    if not level:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Level not found"
+    try:
+        # Check if level exists
+        level = await prisma.niveau.find_unique(where={"id": level_id})
+        if not level:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Level not found"
+            )
+        
+        # Get groups
+        groups = await prisma.groupe.find_many(
+            where={"id_niveau": level_id},
+            include={
+                "etudiants": True,
+                "niveau": True
+            },
+            order={"nom": "asc"}
         )
-    
-    # Get groups
-    groups = await prisma.group.find_many(
-        where={"levelId": level_id},
-        include={
-            "students": {
-                "include": {"user": True}
-            }
-        },
-        order={"name": "asc"}
-    )
-    
-    return {
-        "groups": groups,
-        "level": level,
-        "total": len(groups)
-    }
+        
+        return {
+            "success": True,
+            "groups": [
+                {
+                    "id": group.id,
+                    "nom": group.nom,
+                    "id_niveau": group.id_niveau,
+                    "niveau": {
+                        "id": group.niveau.id,
+                        "nom": group.niveau.nom
+                    } if group.niveau else None,
+                    "student_count": len(group.etudiants) if group.etudiants else 0
+                }
+                for group in groups
+            ],
+            "level": {
+                "id": level.id,
+                "nom": level.nom
+            },
+            "total": len(groups)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in get_level_groups: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch groups: {str(e)}"
+        )

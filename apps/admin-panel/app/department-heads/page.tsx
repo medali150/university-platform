@@ -10,7 +10,6 @@ interface DepartmentHead {
   firstName: string;
   lastName: string;
   email: string;
-  login: string;
   role: string;
   createdAt: string;
   departmentHeadInfo?: {
@@ -33,7 +32,6 @@ interface CreateDeptHeadForm {
   firstName: string;
   lastName: string;
   email: string;
-  login: string;
   password: string;
   departmentId: string;
 }
@@ -42,7 +40,6 @@ interface EditDeptHeadForm {
   firstName: string;
   lastName: string;
   email: string;
-  login: string;
 }
 
 export default function AdminDepartmentHeadsPage() {
@@ -52,6 +49,18 @@ export default function AdminDepartmentHeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Helper function to extract error message from various error formats
+  const getErrorMessage = (err: any): string => {
+    if (typeof err === 'string') return err;
+    if (err?.message) return err.message;
+    if (err?.detail) return err.detail;
+    if (err?.msg) return err.msg;
+    if (Array.isArray(err) && err.length > 0) {
+      return err.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ');
+    }
+    return JSON.stringify(err);
+  };
   
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -127,7 +136,7 @@ export default function AdminDepartmentHeadsPage() {
     clearMessages();
 
     if (!createForm.firstName || !createForm.lastName || !createForm.email || 
-        !createForm.login || !createForm.password || !createForm.departmentId) {
+        !createForm.password || !createForm.departmentId) {
       setError('Tous les champs sont requis');
       return;
     }
@@ -138,7 +147,6 @@ export default function AdminDepartmentHeadsPage() {
           firstName: createForm.firstName,
           lastName: createForm.lastName,
           email: createForm.email,
-          login: createForm.login,
           password: createForm.password,
           role: 'DEPARTMENT_HEAD'
         },
@@ -152,16 +160,15 @@ export default function AdminDepartmentHeadsPage() {
           firstName: '',
           lastName: '',
           email: '',
-          login: '',
           password: '',
           departmentId: ''
         });
         loadData(); // Refresh the list
       } else {
-        setError(result.error || 'Erreur lors de la création');
+        setError(getErrorMessage(result.error) || 'Erreur lors de la création');
       }
     } catch (error: any) {
-      setError(error.message || 'Erreur lors de la création');
+      setError(getErrorMessage(error) || 'Erreur lors de la création');
     }
   };
 
@@ -184,10 +191,10 @@ export default function AdminDepartmentHeadsPage() {
         setEditingDeptHead(null);
         loadData(); // Refresh the list
       } else {
-        setError(result.error || 'Erreur lors de la modification');
+        setError(getErrorMessage(result.error) || 'Erreur lors de la modification');
       }
     } catch (error: any) {
-      setError(error.message || 'Erreur lors de la modification');
+      setError(getErrorMessage(error) || 'Erreur lors de la modification');
     }
   };
 
@@ -208,10 +215,10 @@ export default function AdminDepartmentHeadsPage() {
         setSuccess('Chef de département supprimé avec succès');
         loadData(); // Refresh the list
       } else {
-        setError(result.error || 'Erreur lors de la suppression');
+        setError(getErrorMessage(result.error) || 'Erreur lors de la suppression');
       }
     } catch (error: any) {
-      setError(error.message || 'Erreur lors de la suppression');
+      setError(getErrorMessage(error) || 'Erreur lors de la suppression');
     }
   };
 
@@ -221,8 +228,7 @@ export default function AdminDepartmentHeadsPage() {
     setEditForm({
       firstName: deptHead.firstName,
       lastName: deptHead.lastName,
-      email: deptHead.email,
-      login: deptHead.login
+      email: deptHead.email
     });
     setShowEditModal(true);
     clearMessages();
@@ -340,9 +346,6 @@ export default function AdminDepartmentHeadsPage() {
                         Email
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Login
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Département
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -375,9 +378,6 @@ export default function AdminDepartmentHeadsPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{deptHead.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{deptHead.login}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
@@ -476,17 +476,6 @@ export default function AdminDepartmentHeadsPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Login</label>
-                  <input
-                    type="text"
-                    value={createForm.login}
-                    onChange={(e) => setCreateForm({...createForm, login: e.target.value})}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                    required
-                  />
-                </div>
-                
-                <div>
                   <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
                   <input
                     type="password"
@@ -579,17 +568,6 @@ export default function AdminDepartmentHeadsPage() {
                     type="email"
                     value={editForm.email}
                     onChange={(e) => setEditForm({...editForm, email: e.target.value})}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Login</label>
-                  <input
-                    type="text"
-                    value={editForm.login}
-                    onChange={(e) => setEditForm({...editForm, login: e.target.value})}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
                     required
                   />

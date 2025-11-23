@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { adminManagementApi, DashboardStats } from '@/lib/admin-api';
+import { globalCrudApi } from '@/lib/admin-global-api';
 
 export default function AdminDashboard() {
   const { admin, loading: authLoading, logout } = useAdminAuth();
@@ -27,13 +28,41 @@ export default function AdminDashboard() {
   const loadDashboardStats = async () => {
     try {
       setLoading(true);
-      const result = await adminManagementApi.getDashboardStats();
       
-      if (result.success && result.data) {
-        setStats(result.data);
-      } else {
-        setError(result.error || 'Failed to load dashboard statistics');
+      // Load from both old API and new Global API
+      const [oldStatsResult, departments, rooms, teachers, students] = await Promise.all([
+        adminManagementApi.getDashboardStats(),
+        globalCrudApi.departments.list({ limit: 1 }),
+        globalCrudApi.rooms.list({ limit: 1 }),
+        globalCrudApi.teachers.list({ limit: 1 }),
+        globalCrudApi.students.list({ limit: 1 }),
+      ]);
+      
+      // Merge old stats with new global data
+      let mergedStats: DashboardStats = oldStatsResult.data || {
+        overview: {},
+        universityStructure: {},
+      };
+      
+      // Add global CRUD counts to university structure
+      if (!mergedStats.universityStructure) {
+        mergedStats.universityStructure = {};
       }
+      
+      mergedStats.universityStructure.departments = departments.total || 0;
+      mergedStats.universityStructure.rooms = rooms.total || 0;
+      
+      // Add to overview if available
+      if (!mergedStats.overview) {
+        mergedStats.overview = {};
+      }
+      mergedStats.overview.globalDepartments = departments.total || 0;
+      mergedStats.overview.globalRooms = rooms.total || 0;
+      mergedStats.overview.globalTeachers = teachers.total || 0;
+      mergedStats.overview.globalStudents = students.total || 0;
+      
+      setStats(mergedStats);
+      
     } catch (error: any) {
       setError(error.message || 'Error loading dashboard');
     } finally {
@@ -192,6 +221,29 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* NEW: Global Resources Section */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">🌐 Global Resources (New API)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-lg shadow p-6 text-center border-l-4 border-pink-500">
+                  <div className="text-2xl font-bold text-pink-700">{stats.overview?.globalDepartments || 0}</div>
+                  <div className="text-gray-700 font-medium">Global Departments</div>
+                </div>
+                <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg shadow p-6 text-center border-l-4 border-cyan-500">
+                  <div className="text-2xl font-bold text-cyan-700">{stats.overview?.globalRooms || 0}</div>
+                  <div className="text-gray-700 font-medium">Classrooms</div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow p-6 text-center border-l-4 border-purple-500">
+                  <div className="text-2xl font-bold text-purple-700">{stats.overview?.globalTeachers || 0}</div>
+                  <div className="text-gray-700 font-medium">Teachers (Global)</div>
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-6 text-center border-l-4 border-green-500">
+                  <div className="text-2xl font-bold text-green-700">{stats.overview?.globalStudents || 0}</div>
+                  <div className="text-gray-700 font-medium">Students (Global)</div>
+                </div>
+              </div>
+            </div>
           </div>
         ) : null}
 
@@ -199,6 +251,24 @@ export default function AdminDashboard() {
         <div className="mt-12">
           <h3 className="text-lg font-semibold text-gray-800 mb-6">🛠️ Administrative Actions</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Global Management */}
+            <a href="/global-management" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-pink-500">
+              <div className="text-center">
+                <div className="text-3xl mb-3">🌐</div>
+                <h4 className="font-semibold text-gray-800">Global Management</h4>
+                <p className="text-sm text-gray-600 mt-2">Manage departments, specialties, levels, groups, rooms & subjects</p>
+              </div>
+            </a>
+            
+            {/* Timetable Admin */}
+            <a href="/timetable-admin" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-cyan-500">
+              <div className="text-center">
+                <div className="text-3xl mb-3">📅</div>
+                <h4 className="font-semibold text-gray-800">Timetable (View Only)</h4>
+                <p className="text-sm text-gray-600 mt-2">View all timetables across departments</p>
+              </div>
+            </a>
+
             <a href="/students" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-green-500">
               <div className="text-center">
                 <div className="text-3xl mb-3">👨‍🎓</div>
@@ -206,6 +276,7 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600 mt-2">Create, edit, and manage student accounts</p>
               </div>
             </a>
+            
             <a href="/teachers" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-purple-500">
               <div className="text-center">
                 <div className="text-3xl mb-3">👨‍🏫</div>
@@ -213,6 +284,7 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600 mt-2">Create, edit, and manage teacher accounts</p>
               </div>
             </a>
+            
             <a href="/department-heads" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-orange-500">
               <div className="text-center">
                 <div className="text-3xl mb-3">👨‍💼</div>
@@ -220,25 +292,12 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600 mt-2">Manage department head assignments</p>
               </div>
             </a>
+            
             <a href="/bulk-import" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-indigo-500">
               <div className="text-center">
                 <div className="text-3xl mb-3">📊</div>
                 <h4 className="font-semibold text-gray-800">Bulk Import</h4>
                 <p className="text-sm text-gray-600 mt-2">Import students & teachers from Excel</p>
-              </div>
-            </a>
-            <a href="/schedules" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-blue-500">
-              <div className="text-center">
-                <div className="text-3xl mb-3">📅</div>
-                <h4 className="font-semibold text-gray-800">Schedule Management</h4>
-                <p className="text-sm text-gray-600 mt-2">Create and manage class schedules</p>
-              </div>
-            </a>
-            <a href="/system" className="block bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-l-4 border-red-500">
-              <div className="text-center">
-                <div className="text-3xl mb-3">⚙️</div>
-                <h4 className="font-semibent text-gray-800">System Settings</h4>
-                <p className="text-sm text-gray-600 mt-2">Configure system settings and security</p>
               </div>
             </a>
           </div>
