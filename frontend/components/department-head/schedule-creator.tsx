@@ -127,31 +127,35 @@ export default function InteractiveTimetableCreator() {
       setLoading(true);
       setError(null);
       
-      console.log('Loading schedule for group:', selectedGroup, 'week:', currentWeekStart);
+      console.log('📅 Loading schedule for group:', selectedGroup, 'week:', currentWeekStart);
       
       // Fetch sessions using TimetableAPI which uses the correct auth token
       const timetable = await TimetableAPI.getGroupWeeklySchedule(selectedGroup, currentWeekStart);
-      console.log('Timetable loaded:', timetable);
-      console.log('Timetable structure:');
+      
+      console.log('📦 Timetable loaded successfully!');
+      console.log('📊 Timetable structure:', timetable);
+      
+      // Count total sessions
+      const totalSessions = Object.values(timetable).reduce((sum: number, sessions: any) => sum + (sessions?.length || 0), 0);
+      console.log(`✅ Total sessions loaded: ${totalSessions}`);
+      
+      // Log each day's sessions
       Object.entries(timetable).forEach(([day, sessions]) => {
-        console.log(`  ${day}:`, sessions);
         if (Array.isArray(sessions) && sessions.length > 0) {
-          sessions.forEach((s: any, i: number) => {
-            console.log(`    [${i}] ${s.startTime}-${s.endTime}: ${s.subject} (${s.teacher}, ${s.room})`);
+          console.log(`  📌 ${day}: ${sessions.length} session(s)`);
+          sessions.forEach((s: any) => {
+            console.log(`    - ${s.startTime}-${s.endTime}: ${s.subject} (${s.teacher}, ${s.room})`);
           });
+        } else {
+          console.log(`  ⚪ ${day}: No sessions`);
         }
       });
       
-      // Count total sessions
-      const totalSessions = Object.values(timetable).reduce((sum: number, sessions: any) => sum + sessions.length, 0);
-      console.log(`Total sessions loaded: ${totalSessions}`);
-      console.log('Complete timetable data:', JSON.stringify(timetable, null, 2));
-      
       setWeekSchedule({ timetable });
-      console.log('✅ weekSchedule state updated with', totalSessions, 'sessions');
+      console.log('✅ weekSchedule state updated');
 
     } catch (err) {
-      console.error('Error loading schedule:', err);
+      console.error('❌ Error loading schedule:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load schedule';
       
       // If authentication error, suggest re-login
@@ -246,6 +250,14 @@ export default function InteractiveTimetableCreator() {
       const sessionDate = new Date(weekStart);
       sessionDate.setDate(weekStart.getDate() + dayOffset);
       
+      console.log('📅 Creating session:', {
+        selectedDay: selectedCell.day,
+        dayOffset,
+        weekStart: currentWeekStart,
+        sessionDate: sessionDate.toISOString().split('T')[0],
+        timeSlot: `${selectedCell.timeSlot.start}-${selectedCell.timeSlot.end}`
+      });
+      
       const sessionData = {
         date: sessionDate.toISOString().split('T')[0], // YYYY-MM-DD
         start_time: selectedCell.timeSlot.start,
@@ -258,6 +270,8 @@ export default function InteractiveTimetableCreator() {
         semester_start: currentWeekStart,
         semester_end: sessionForm.semester_end
       };
+      
+      console.log('📤 Sending session data:', sessionData);
 
       // Use department-head API endpoint with conflict detection
       const authToken = localStorage.getItem('authToken');
@@ -409,6 +423,7 @@ export default function InteractiveTimetableCreator() {
 
   const getCellSession = (day: DayOfWeek, timeSlot: typeof TIME_SLOTS[0]) => {
     if (!weekSchedule?.timetable) {
+      console.log('❌ No weekSchedule.timetable found');
       return null;
     }
     
@@ -416,33 +431,31 @@ export default function InteractiveTimetableCreator() {
     const daySessions = weekSchedule.timetable[dayLabel];
     
     if (!daySessions || !Array.isArray(daySessions)) {
+      console.log(`❌ No sessions array for ${dayLabel}`, { daySessions, allDays: Object.keys(weekSchedule.timetable) });
       return null;
     }
     
+    console.log(`🔎 Looking for session on ${dayLabel} ${timeSlot.start}-${timeSlot.end} among ${daySessions.length} sessions`);
+    
     const session = daySessions.find((session: any) => {
-      // More flexible time matching - handle both HH:MM and H:MM formats
-      const sessionStart = session.startTime?.substring(0, 5); // Get first 5 chars (HH:MM)
-      const sessionEnd = session.endTime?.substring(0, 5);
+      const sessionStart = session.startTime;
+      const sessionEnd = session.endTime;
       const slotStart = timeSlot.start;
       const slotEnd = timeSlot.end;
       
       const match = sessionStart === slotStart && sessionEnd === slotEnd;
       
-      // Log matching attempt for this specific session
-      console.log(`🔍 Matching ${dayLabel} ${slotStart}-${slotEnd} against session:`, {
-        sessionStart,
-        sessionEnd,
-        slotStart,
-        slotEnd,
-        startMatch: sessionStart === slotStart,
-        endMatch: sessionEnd === slotEnd,
-        bothMatch: match,
-        sessionId: session.id,
-        subject: session.subject
-      });
+      if (match) {
+        console.log(`✅ MATCH FOUND for ${dayLabel} ${slotStart}-${slotEnd}:`, session);
+      }
       
       return match;
     });
+    
+    if (!session) {
+      console.log(`❌ No matching session for ${dayLabel} ${timeSlot.start}-${timeSlot.end}`);
+      console.log('Available sessions:', daySessions.map(s => `${s.startTime}-${s.endTime}`));
+    }
     
     return session;
   };

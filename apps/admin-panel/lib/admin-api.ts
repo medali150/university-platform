@@ -37,6 +37,10 @@ export interface DashboardStats {
     totalTeachers: number;
     totalDepartmentHeads: number;
     recentRegistrations: number;
+    globalDepartments?: number;
+    globalRooms?: number;
+    globalTeachers?: number;
+    globalStudents?: number;
   };
   universityStructure: {
     faculties: number;
@@ -44,6 +48,7 @@ export interface DashboardStats {
     specialties: number;
     levels: number;
     groups: number;
+    rooms?: number;
   };
   roleDistribution: Record<string, number>;
   departmentStats: {

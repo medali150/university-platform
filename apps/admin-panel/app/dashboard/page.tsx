@@ -40,22 +40,32 @@ export default function AdminDashboard() {
       
       // Merge old stats with new global data
       let mergedStats: DashboardStats = oldStatsResult.data || {
-        overview: {},
-        universityStructure: {},
+        overview: {
+          totalUsers: 0,
+          totalStudents: 0,
+          totalTeachers: 0,
+          totalDepartmentHeads: 0,
+          recentRegistrations: 0
+        },
+        universityStructure: {
+          faculties: 0,
+          departments: 0,
+          specialties: 0,
+          levels: 0,
+          groups: 0
+        },
+        roleDistribution: {},
+        departmentStats: {
+          studentsByDepartment: {},
+          teachersByDepartment: {}
+        }
       };
       
       // Add global CRUD counts to university structure
-      if (!mergedStats.universityStructure) {
-        mergedStats.universityStructure = {};
-      }
-      
       mergedStats.universityStructure.departments = departments.total || 0;
       mergedStats.universityStructure.rooms = rooms.total || 0;
       
       // Add to overview if available
-      if (!mergedStats.overview) {
-        mergedStats.overview = {};
-      }
       mergedStats.overview.globalDepartments = departments.total || 0;
       mergedStats.overview.globalRooms = rooms.total || 0;
       mergedStats.overview.globalTeachers = teachers.total || 0;

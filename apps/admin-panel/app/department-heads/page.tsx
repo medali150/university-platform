@@ -72,7 +72,6 @@ export default function AdminDepartmentHeadsPage() {
     firstName: '',
     lastName: '',
     email: '',
-    login: '',
     password: '',
     departmentId: ''
   });
@@ -80,8 +79,7 @@ export default function AdminDepartmentHeadsPage() {
   const [editForm, setEditForm] = useState<EditDeptHeadForm>({
     firstName: '',
     lastName: '',
-    email: '',
-    login: ''
+    email: ''
   });
 
   const router = useRouter();

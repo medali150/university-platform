@@ -193,53 +193,36 @@ class TimetableAPIClient {
         });
         
         if (dayName && timetable[dayName]) {
-          // Extract time from datetime objects (heure_debut and heure_fin are DateTime in Prisma)
-          // The backend sends these as ISO strings like "2024-01-15T14:30:00.000Z"
+          // Extract time from datetime strings
+          // Backend sends heure_debut and heure_fin as ISO datetime strings
+          // IMPORTANT: Backend stores these as LOCAL time (timezone-naive), but they get serialized with 'Z' (UTC)
+          // We need to extract just the HH:MM from the ISO string directly, NOT parse as Date (timezone issues)
+          
           let startTime = '';
           let endTime = '';
           
           if (schedule.heure_debut) {
-            console.log('🕐 Raw heure_debut:', schedule.heure_debut);
-            // Try parsing as Date first, fallback to direct string
-            try {
-              const date = new Date(schedule.heure_debut);
-              if (!isNaN(date.getTime())) {
-                // Format as HH:MM (24-hour format)
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                startTime = `${hours}:${minutes}`;
-                console.log('  ✓ Parsed as Date:', startTime);
-              } else {
-                // It's already a time string (HH:MM:SS or HH:MM)
-                startTime = schedule.heure_debut.substring(0, 5);
-                console.log('  ✓ Used as string:', startTime);
-              }
-            } catch (e) {
-              console.log('  ⚠️ Parse error, using substring:', e);
-              startTime = schedule.heure_debut.substring(0, 5);
+            // Extract time from ISO string: "2024-11-23T08:30:00.000Z" -> "08:30"
+            const timeMatch = schedule.heure_debut.match(/T(\d{2}):(\d{2})/);
+            if (timeMatch) {
+              startTime = `${timeMatch[1]}:${timeMatch[2]}`;
             }
           }
           
           if (schedule.heure_fin) {
-            console.log('🕑 Raw heure_fin:', schedule.heure_fin);
-            try {
-              const date = new Date(schedule.heure_fin);
-              if (!isNaN(date.getTime())) {
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                endTime = `${hours}:${minutes}`;
-                console.log('  ✓ Parsed as Date:', endTime);
-              } else {
-                endTime = schedule.heure_fin.substring(0, 5);
-                console.log('  ✓ Used as string:', endTime);
-              }
-            } catch (e) {
-              console.log('  ⚠️ Parse error, using substring:', e);
-              endTime = schedule.heure_fin.substring(0, 5);
+            const timeMatch = schedule.heure_fin.match(/T(\d{2}):(\d{2})/);
+            if (timeMatch) {
+              endTime = `${timeMatch[1]}:${timeMatch[2]}`;
             }
           }
           
-          console.log('⏰ Final parsed times:', { startTime, endTime });
+          console.log(`⏰ Extracted times for ${dayName}:`, {
+            raw_debut: schedule.heure_debut,
+            raw_fin: schedule.heure_fin,
+            startTime,
+            endTime,
+            matiere: schedule.matiere?.nom
+          });
           
           // Handle teacher name - check if utilisateur exists
           let teacherName = 'Unknown';

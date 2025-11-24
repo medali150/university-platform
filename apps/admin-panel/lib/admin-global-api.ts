@@ -10,13 +10,17 @@ if (typeof window !== 'undefined') {
 
 // Base fetch with auth
 async function adminFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
   };
 
   if (adminAuthToken) {
     headers['Authorization'] = `Bearer ${adminAuthToken}`;
+  }
+  
+  // Merge with any additional headers from options
+  if (options.headers) {
+    Object.assign(headers, options.headers);
   }
 
   const response = await fetch(`${ADMIN_API_BASE_URL}${endpoint}`, {
