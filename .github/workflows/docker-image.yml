@@ -38,17 +38,17 @@ jobs:
           --tag university-admin:${{ github.sha }} \
           --tag university-admin:latest
     
-    - name: Test docker-compose build
-      run: docker-compose build
+    - name: Test docker compose build
+      run: docker compose build
     
-    - name: Start services with docker-compose
-      run: docker-compose up -d
+    - name: Start services with docker compose
+      run: docker compose up -d
     
     - name: Wait for services to be ready
       run: sleep 30
     
     - name: Check running containers
-      run: docker-compose ps
+      run: docker compose ps
     
     - name: Check API health
       run: |
@@ -64,8 +64,8 @@ jobs:
     
     - name: View logs on failure
       if: failure()
-      run: docker-compose logs
+      run: docker compose logs
     
     - name: Stop services
       if: always()
-      run: docker-compose down -v
+      run: docker compose down -v
