@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: Docker Multi-Service CI
 
 on:
   push:
@@ -7,12 +7,65 @@ on:
     branches: [ "main" ]
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
-
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build API Docker image
+      run: |
+        docker build ./api \
+          --file ./api/Dockerfile \
+          --tag university-api:${{ github.sha }} \
+          --tag university-api:latest
+    
+    - name: Build Frontend Docker image
+      run: |
+        docker build ./frontend \
+          --file ./frontend/Dockerfile \
+          --tag university-frontend:${{ github.sha }} \
+          --tag university-frontend:latest
+    
+    - name: Build Admin Panel Docker image
+      run: |
+        docker build ./apps/admin-panel \
+          --file ./apps/admin-panel/Dockerfile \
+          --tag university-admin:${{ github.sha }} \
+          --tag university-admin:latest
+    
+    - name: Test docker-compose build
+      run: docker-compose build
+    
+    - name: Start services with docker-compose
+      run: docker-compose up -d
+    
+    - name: Wait for services to be ready
+      run: sleep 30
+    
+    - name: Check running containers
+      run: docker-compose ps
+    
+    - name: Check API health
+      run: |
+        curl -f http://localhost:8001/docs || exit 1
+    
+    - name: Check Frontend health
+      run: |
+        curl -f http://localhost:3002 || exit 1
+    
+    - name: Check Admin Panel health
+      run: |
+        curl -f http://localhost:3003 || exit 1
+    
+    - name: View logs on failure
+      if: failure()
+      run: docker-compose logs
+    
+    - name: Stop services
+      if: always()
+      run: docker-compose down -v
