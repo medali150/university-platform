@@ -67,7 +67,7 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
     if (user && course) {
       console.log('🔍 Teacher Check:', {
         userRole: user.role,
-        userEnseignantId: user.enseignant_id,
+        userId: user.id,
         courseTeacherId: course.id_enseignant,
         isTeacherRole: user.role === 'TEACHER',
         SHOW_BUTTONS: user.role === 'TEACHER' ? 'YES ✅' : 'NO ❌'
@@ -215,8 +215,7 @@ function StreamView({ course, announcements, upcomingAssignments, isTeacher, onR
       setCreating(true);
       await classroomApi.createAnnouncement(course.id, {
         content: announcementContent,
-        isPinned,
-        allowComments
+        isPinned
       });
       setAnnouncementContent('');
       setIsPinned(false);
@@ -239,7 +238,7 @@ function StreamView({ course, announcements, upcomingAssignments, isTeacher, onR
         <Card className="bg-yellow-50 border-yellow-300">
           <CardContent className="pt-4">
             <p className="text-sm font-bold">🔍 DEBUG INFO:</p>
-            <p className="text-xs">Rôle utilisateur: <strong>{user?.role || 'NON DÉFINI'}</strong></p>
+            <p className="text-xs">Rôle utilisateur: <strong>{currentUser?.role || 'NON DÉFINI'}</strong></p>
             <p className="text-xs">isTeacher: <strong>{isTeacher ? 'OUI ✅' : 'NON ❌'}</strong></p>
             <p className="text-xs">Boutons visibles: <strong>{isTeacher ? 'OUI ✅' : 'NON ❌'}</strong></p>
           </CardContent>
@@ -507,8 +506,7 @@ function AssignmentsView({ courseId, isTeacher }: any) {
       setCreating(true);
       await classroomApi.createAssignment(courseId, {
         ...formData,
-        dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
-        availableFrom: formData.availableFrom ? new Date(formData.availableFrom).toISOString() : undefined
+        dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined
       });
       setShowCreateDialog(false);
       setFormData({
