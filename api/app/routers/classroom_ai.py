@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/classroom/ai", tags=["Smart Classroom - AI Assis
 class ChatMessage(BaseModel):
     message: str
     course_id: Optional[str] = None
+    context: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

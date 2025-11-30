@@ -539,59 +539,46 @@ class SmartClassroomAPI {
   // AI ENDPOINTS
   // ========================================
 
-  async chatWithAI(message: string, context?: string, courseId?: string): Promise<{ response: string }> {
-    return this.request<{ response: string }>('/api/classroom/ai/chat', {
+  async chatWithAI(message: string, context?: string, courseId?: string): Promise<{ response: string; timestamp: string; context_used: boolean }> {
+    return this.request<{ response: string; timestamp: string; context_used: boolean }>('/api/classroom/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, context, courseId }),
+      body: JSON.stringify({ 
+        message, 
+        context, 
+        course_id: courseId 
+      }),
     });
   }
 
   async checkPlagiarism(
     assignmentId: string,
-    content: string
+    submissionText: string
   ): Promise<PlagiarismResult> {
     return this.request<PlagiarismResult>('/api/classroom/ai/plagiarism/check', {
       method: 'POST',
-      body: JSON.stringify({ assignmentId, content }),
+      body: JSON.stringify({ 
+        assignment_id: assignmentId, 
+        submission_text: submissionText 
+      }),
     });
   }
 
-  async generateFeedback(
-    assignmentTitle: string,
-    submissionContent: string,
-    rubric?: string
-  ): Promise<AIFeedback> {
-    return this.request<AIFeedback>('/api/classroom/ai/feedback/generate', {
+  async generateFeedback(submissionId: string): Promise<{ submission_id: string; feedback: string; student_name: string; generated_at: string }> {
+    return this.request<{ submission_id: string; feedback: string; student_name: string; generated_at: string }>('/api/classroom/ai/feedback/generate', {
       method: 'POST',
-      body: JSON.stringify({ assignmentTitle, submissionContent, rubric }),
+      body: JSON.stringify({ 
+        submission_id: submissionId 
+      }),
     });
   }
 
-  async summarizeContent(content: string, maxLength?: number, style?: string): Promise<{ summary: string }> {
-    return this.request<{ summary: string }>('/api/classroom/ai/summarize', {
+  async summarizeContent(materialId: string, style: string = 'concise'): Promise<{ summary: string; title: string; material_id: string }> {
+    return this.request<{ summary: string; title: string; material_id: string }>('/api/classroom/ai/summarize', {
       method: 'POST',
-      body: JSON.stringify({ content, maxLength, style }),
-    });
-  }
-
-  async generateStudyGuide(content: string, topic?: string): Promise<{ studyGuide: string }> {
-    return this.request<{ studyGuide: string }>('/api/classroom/ai/study-guide', {
-      method: 'POST',
-      body: JSON.stringify({ content, topic }),
-    });
-  }
-
-  async extractKeyPoints(content: string, numPoints?: number): Promise<{ keyPoints: string[] }> {
-    return this.request<{ keyPoints: string[] }>('/api/classroom/ai/key-points', {
-      method: 'POST',
-      body: JSON.stringify({ content, numPoints }),
-    });
-  }
-
-  async simplifyText(content: string, targetLevel?: string): Promise<{ simplified: string }> {
-    return this.request<{ simplified: string }>('/api/classroom/ai/simplify', {
-      method: 'POST',
-      body: JSON.stringify({ content, targetLevel }),
+      body: JSON.stringify({ 
+        material_id: materialId, 
+        style 
+      }),
     });
   }
 }
