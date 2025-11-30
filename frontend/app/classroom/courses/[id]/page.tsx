@@ -17,7 +17,13 @@ import {
   MessageSquare,
   Plus,
   Calendar,
-  Clock
+  Clock,
+  CheckCircle2,
+  Upload,
+  Download,
+  Eye,
+  FileText,
+  Home
 } from 'lucide-react';
 
 interface CourseHomeProps {
@@ -100,38 +106,57 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/20 to-blue-50/30">
+      {/* Modern Hero Header with Glassmorphism */}
       <div 
-        className="bg-gradient-to-r from-primary to-primary/80 text-white"
+        className="relative overflow-hidden text-white shadow-2xl"
         style={{
-          background: `linear-gradient(135deg, ${getRandomColor(course.id)} 0%, ${getRandomColor(course.id)}CC 100%)`,
+          background: `linear-gradient(135deg, ${getRandomColor(course.id)} 0%, ${getRandomColor(course.id)}DD 100%)`,
         }}
       >
-        <div className="container mx-auto px-4 py-8">
+        {/* Decorative background elements */}
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl"></div>
+        
+        <div className="relative z-10 container mx-auto px-6 py-10">
           <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20"
+                className="text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                 onClick={() => router.push('/classroom/courses')}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
+              <Button
+                variant="ghost"
+                className="text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105 px-4"
+                onClick={() => router.push('/dashboard')}
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Tableau de bord
+              </Button>
               <div>
-                <h1 className="text-3xl font-bold">{course.nom}</h1>
-                <p className="text-white/90 mt-2">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg border border-white/30">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <h1 className="text-4xl font-bold drop-shadow-lg">{course.nom}</h1>
+                </div>
+                <p className="text-white/90 mt-3 text-lg font-medium flex items-center gap-2">
+                  <span className="w-2 h-2 bg-white/80 rounded-full"></span>
                   {course.anneeAcademique} • {course.semestre}
                   {course.code && ` • ${course.code}`}
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Button
                 variant="ghost"
-                className="text-white hover:bg-white/20 bg-white/10"
+                className="text-white hover:bg-white/20 bg-white/10 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                 onClick={() => router.push('/classroom/ai-assistant')}
               >
                 <span className="mr-2">✨</span>
@@ -139,7 +164,7 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
               </Button>
               <Button
                 variant="ghost"
-                className="text-white hover:bg-white/20"
+                className="text-white hover:bg-white/20 bg-white/10 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                 onClick={() => router.push(`/classroom/courses/${params.id}/people`)}
               >
                 <Users className="h-4 w-4 mr-2" />
@@ -148,7 +173,7 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
               {isTeacher && (
                 <Button
                   variant="ghost"
-                  className="text-white hover:bg-white/20"
+                  className="text-white hover:bg-white/20 bg-white/10 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                   onClick={() => router.push(`/classroom/courses/${params.id}/settings`)}
                 >
                   <Settings className="h-4 w-4 mr-2" />
@@ -160,15 +185,39 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b">
-        <div className="container mx-auto px-4">
+      {/* Modern Navigation Tabs */}
+      <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 shadow-sm sticky top-0 z-20">
+        <div className="container mx-auto px-6">
           <Tabs defaultValue="stream" className="w-full">
-            <TabsList className="w-full justify-start border-0 bg-transparent">
-              <TabsTrigger value="stream">Stream</TabsTrigger>
-              <TabsTrigger value="assignments">Assignments</TabsTrigger>
-              <TabsTrigger value="materials">Materials</TabsTrigger>
-              <TabsTrigger value="discussions">Discussions</TabsTrigger>
+            <TabsList className="w-full justify-start border-0 bg-transparent h-14 gap-1">
+              <TabsTrigger 
+                value="stream" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Stream
+              </TabsTrigger>
+              <TabsTrigger 
+                value="assignments"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <BookOpen className="h-4 w-4 mr-2" />
+                Devoirs
+              </TabsTrigger>
+              <TabsTrigger 
+                value="materials"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Matériaux
+              </TabsTrigger>
+              <TabsTrigger 
+                value="discussions"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Discussions
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="stream">
@@ -690,40 +739,112 @@ function AssignmentsView({ courseId, isTeacher }: any) {
         </Card>
       ) : (
         <div className="space-y-4">
-          {assignments.map((assignment) => (
-            <Card key={assignment.id} className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{assignment.title}</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {assignment.points} points • 
-                      {assignment.dueDate && ` Date limite: ${new Date(assignment.dueDate).toLocaleDateString()}`}
-                    </p>
+          {assignments.map((assignment) => {
+            const isOverdue = assignment.dueDate && new Date(assignment.dueDate) < new Date();
+            const userSubmission = assignment.userSubmission; // Assuming API returns this
+            
+            return (
+              <Card 
+                key={assignment.id} 
+                className="group hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 border-l-4 border-l-transparent hover:border-l-purple-500 bg-gradient-to-r from-white to-gray-50/30"
+                onClick={() => router.push(`/classroom/assignments/${assignment.id}`)}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg group-hover:from-purple-200 group-hover:to-blue-200 transition-colors">
+                          <BookOpen className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg group-hover:text-purple-600 transition-colors">{assignment.title}</CardTitle>
+                          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                            <span className="font-semibold text-purple-600">{assignment.points} points</span>
+                            {assignment.dueDate && (
+                              <>
+                                <span>•</span>
+                                <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                                  {isOverdue ? '⚠️ Échue: ' : '📅 Date limite: '}
+                                  {new Date(assignment.dueDate).toLocaleDateString('fr-FR', { 
+                                    day: 'numeric', 
+                                    month: 'long', 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </span>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        assignment.status === 'PUBLISHED' 
+                          ? 'bg-green-100 text-green-700'
+                          : assignment.status === 'DRAFT'
+                          ? 'bg-gray-100 text-gray-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {assignment.status === 'PUBLISHED' ? 'Publié' : 
+                         assignment.status === 'DRAFT' ? 'Brouillon' : 'Fermé'}
+                      </span>
+                      {!isTeacher && userSubmission && (
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          userSubmission.status === 'GRADED'
+                            ? 'bg-blue-100 text-blue-700'
+                            : userSubmission.status === 'SUBMITTED'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {userSubmission.status === 'GRADED' 
+                            ? `✅ Noté: ${userSubmission.grade}/${assignment.points}`
+                            : userSubmission.status === 'SUBMITTED'
+                            ? '📤 Soumis'
+                            : userSubmission.status}
+                        </span>
+                      )}
+                      {!isTeacher && !userSubmission && assignment.status === 'PUBLISHED' && (
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                          ⏳ À soumettre
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    assignment.status === 'PUBLISHED' 
-                      ? 'bg-green-100 text-green-700'
-                      : assignment.status === 'DRAFT'
-                      ? 'bg-gray-100 text-gray-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {assignment.status === 'PUBLISHED' ? 'Publié' : 
-                     assignment.status === 'DRAFT' ? 'Brouillon' : 'Fermé'}
-                  </span>
-                </div>
-              </CardHeader>
-              {assignment.description && (
-                <CardContent>
-                  <p className="text-sm line-clamp-2">{assignment.description}</p>
-                  <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
-                    <span>{assignment.submissionsCount || 0} soumissions</span>
-                    {isTeacher && <span>{assignment.gradedCount || 0} notées</span>}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          ))}
+                </CardHeader>
+                {assignment.description && (
+                  <CardContent>
+                    <p className="text-sm line-clamp-2 text-gray-600">{assignment.description}</p>
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        {isTeacher ? (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <Users className="h-4 w-4" />
+                              {assignment.submissionsCount || 0} soumissions
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="h-4 w-4" />
+                              {assignment.gradedCount || 0} notées
+                            </span>
+                          </>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {assignment.submissionsCount || 0} étudiants ont soumis
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-purple-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        {isTeacher ? 'Gérer le devoir' : 'Voir les détails'}
+                        <ArrowLeft className="h-3 w-3 rotate-180" />
+                      </span>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
@@ -915,29 +1036,80 @@ function MaterialsView({ courseId, isTeacher }: any) {
           </p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {materials.map((material) => (
-            <Card 
-              key={material.id} 
-              className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary"
-              onClick={() => router.push(`/classroom/materials/${material.id}`)}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-3">
-                  <FolderOpen className="h-8 w-8 text-primary flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium truncate">{material.title || material.titre}</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {material.type === 'link' ? '🔗 Lien' : '📄 Document'} • {material.fileSize ? `${(material.fileSize / 1024).toFixed(1)} KB` : 'Lien'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {new Date(material.createdAt).toLocaleDateString('fr-FR')}
-                    </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {materials.map((material) => {
+            const isLink = material.type === 'link' || material.fileUrl?.startsWith('http');
+            const fileIcon = isLink ? '🔗' : material.fileType?.includes('pdf') ? '📕' : material.fileType?.includes('image') ? '🖼️' : material.fileType?.includes('video') ? '🎥' : '📄';
+            
+            return (
+              <Card 
+                key={material.id} 
+                className="group hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/20 border-2 border-transparent hover:border-purple-200"
+                onClick={() => {
+                  if (isLink && material.fileUrl) {
+                    window.open(material.fileUrl, '_blank');
+                  } else {
+                    router.push(`/classroom/materials/${material.id}`);
+                  }
+                }}
+              >
+                <CardContent className="pt-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-3 bg-gradient-to-br from-purple-100 to-blue-100 rounded-xl group-hover:from-purple-200 group-hover:to-blue-200 transition-colors">
+                        {isLink ? (
+                          <FolderOpen className="h-6 w-6 text-purple-600" />
+                        ) : (
+                          <FileText className="h-6 w-6 text-purple-600" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors">
+                          {material.title || material.titre}
+                        </h4>
+                        <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                          <span>{fileIcon}</span>
+                          <span>{isLink ? 'Lien' : material.fileType || 'Document'}</span>
+                          {material.fileSize && (
+                            <>
+                              <span>•</span>
+                              <span>{(material.fileSize / 1024).toFixed(1)} KB</span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {material.description && (
+                      <p className="text-sm text-gray-600 line-clamp-2 pl-12">
+                        {material.description}
+                      </p>
+                    )}
+                    
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{new Date(material.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-purple-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isLink ? (
+                          <>
+                            <Eye className="h-3 w-3" />
+                            <span>Ouvrir</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-3 w-3" />
+                            <span>Télécharger</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1078,34 +1250,55 @@ function DiscussionsView({ courseId }: any) {
           </p>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {discussions.map((discussion) => (
-            <Card key={discussion.id} className="hover:shadow-md transition-shadow cursor-pointer">
+            <Card 
+              key={discussion.id} 
+              className="group hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 bg-gradient-to-r from-white to-blue-50/20 border-l-4 border-l-transparent hover:border-l-blue-500"
+              onClick={() => router.push(`/classroom/discussions/${discussion.id}`)}
+            >
               <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex-shrink-0 group-hover:from-blue-200 group-hover:to-indigo-200 transition-colors">
+                    <MessageSquare className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
                       {discussion.isPinned && (
-                        <span className="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary">
-                          Épinglé
+                        <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700 font-medium flex items-center gap-1">
+                          📌 Épinglé
                         </span>
                       )}
                       {discussion.isResolved && (
-                        <span className="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">
-                          Résolu
+                        <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-700 font-medium flex items-center gap-1">
+                          ✅ Résolu
                         </span>
                       )}
                     </div>
-                    <h4 className="font-medium mt-2">{discussion.title}</h4>
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                    <h4 className="font-semibold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
+                      {discussion.title}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-2 leading-relaxed">
                       {discussion.content}
                     </p>
-                    <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-                      <span>{discussion.author?.prenom} {discussion.author?.nom}</span>
-                      <span>{new Date(discussion.createdAt).toLocaleDateString()}</span>
-                      <span className="flex items-center gap-1">
-                        <MessageSquare className="h-3 w-3" />
-                        {discussion.repliesCount || 0} réponses
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <Users className="h-3.5 w-3.5" />
+                          {discussion.author?.prenom} {discussion.author?.nom}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {new Date(discussion.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-blue-600 font-medium">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          {discussion.repliesCount || 0} réponses
+                        </span>
+                      </div>
+                      <span className="text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        Participer
+                        <ArrowLeft className="h-3 w-3 rotate-180" />
                       </span>
                     </div>
                   </div>
