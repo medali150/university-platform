@@ -188,7 +188,7 @@ export const adminAuthApi = {
     }
 
     const result = await secureAdminApiClient.post<AdminLoginResponse>('/auth/login', { 
-      login, 
+      email: login,  // API expects 'email' field, not 'login'
       password 
     });
     

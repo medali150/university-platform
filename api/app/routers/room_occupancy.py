@@ -56,11 +56,11 @@ async def get_rooms_occupancy(
         )
         
         time_slots = [
-            {"id": "slot1", "start": "08:30", "end": "10:00"},
-            {"id": "slot2", "start": "10:10", "end": "11:40"},
-            {"id": "slot3", "start": "11:50", "end": "13:20"},
-            {"id": "slot4", "start": "14:30", "end": "16:00"},
-            {"id": "slot5", "start": "16:10", "end": "17:40"}
+            {"id": "slot1", "start": "08:10", "end": "09:50"},
+            {"id": "slot2", "start": "10:00", "end": "11:40"},
+            {"id": "slot3", "start": "11:50", "end": "13:30"},
+            {"id": "slot4", "start": "14:30", "end": "16:10"},
+            {"id": "slot5", "start": "16:10", "end": "17:50"}
         ]
         
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -76,16 +76,16 @@ async def get_rooms_occupancy(
             
             for schedule in room.emploiTemps:
                 try:
-                    schedule_date = schedule.date
-                    day_index = schedule_date.weekday()
+                    # Use heure_debut for both date and time (it contains the full datetime)
+                    schedule_datetime = schedule.heure_debut
+                    day_index = schedule_datetime.weekday()
                     if day_index > 5:
                         continue
                     
                     day_name = days[day_index]
                     
                     # Get schedule start time (HH:MM format)
-                    start_time = schedule.heure_debut
-                    schedule_start = f"{start_time.hour:02d}:{start_time.minute:02d}"
+                    schedule_start = f"{schedule_datetime.hour:02d}:{schedule_datetime.minute:02d}"
                     
                     # Match schedule to time slot based on start time
                     time_slot = None
@@ -93,6 +93,19 @@ async def get_rooms_occupancy(
                         if schedule_start == slot["start"]:
                             time_slot = slot["id"]
                             break
+                    
+                    # If no exact match, find the slot that contains this time
+                    if not time_slot:
+                        schedule_minutes = schedule_datetime.hour * 60 + schedule_datetime.minute
+                        for slot in time_slots:
+                            slot_start_parts = slot["start"].split(":")
+                            slot_start_minutes = int(slot_start_parts[0]) * 60 + int(slot_start_parts[1])
+                            slot_end_parts = slot["end"].split(":")
+                            slot_end_minutes = int(slot_end_parts[0]) * 60 + int(slot_end_parts[1])
+                            
+                            if slot_start_minutes <= schedule_minutes < slot_end_minutes:
+                                time_slot = slot["id"]
+                                break
                     
                     if time_slot:
                         teacher_name = "Non assigné"
@@ -111,8 +124,13 @@ async def get_rooms_occupancy(
                                 "status": schedule.status
                             }
                         }
+                        logger.info(f"Assigned schedule to room {room.code}, {day_name} {time_slot}: {schedule.matiere.nom if schedule.matiere else 'N/A'}")
+                    else:
+                        logger.warning(f"Could not find time slot for schedule {schedule.id} at {schedule_start} in room {room.code}")
                 except Exception as e:
-                    logger.warning(f"Error processing schedule {schedule.id}: {str(e)}")
+                    logger.error(f"Error processing schedule {schedule.id}: {str(e)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                     continue
             
             room_data = {
