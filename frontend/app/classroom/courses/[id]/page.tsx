@@ -100,38 +100,49 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/20 to-blue-50/30">
+      {/* Modern Hero Header with Glassmorphism */}
       <div 
-        className="bg-gradient-to-r from-primary to-primary/80 text-white"
+        className="relative overflow-hidden text-white shadow-2xl"
         style={{
-          background: `linear-gradient(135deg, ${getRandomColor(course.id)} 0%, ${getRandomColor(course.id)}CC 100%)`,
+          background: `linear-gradient(135deg, ${getRandomColor(course.id)} 0%, ${getRandomColor(course.id)}DD 100%)`,
         }}
       >
-        <div className="container mx-auto px-4 py-8">
+        {/* Decorative background elements */}
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl"></div>
+        
+        <div className="relative z-10 container mx-auto px-6 py-10">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20"
+                className="text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                 onClick={() => router.push('/classroom/courses')}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
-                <h1 className="text-3xl font-bold">{course.nom}</h1>
-                <p className="text-white/90 mt-2">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg border border-white/30">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <h1 className="text-4xl font-bold drop-shadow-lg">{course.nom}</h1>
+                </div>
+                <p className="text-white/90 mt-3 text-lg font-medium flex items-center gap-2">
+                  <span className="w-2 h-2 bg-white/80 rounded-full"></span>
                   {course.anneeAcademique} • {course.semestre}
                   {course.code && ` • ${course.code}`}
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Button
                 variant="ghost"
-                className="text-white hover:bg-white/20 bg-white/10"
+                className="text-white hover:bg-white/20 bg-white/10 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                 onClick={() => router.push('/classroom/ai-assistant')}
               >
                 <span className="mr-2">✨</span>
@@ -139,7 +150,7 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
               </Button>
               <Button
                 variant="ghost"
-                className="text-white hover:bg-white/20"
+                className="text-white hover:bg-white/20 bg-white/10 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                 onClick={() => router.push(`/classroom/courses/${params.id}/people`)}
               >
                 <Users className="h-4 w-4 mr-2" />
@@ -148,7 +159,7 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
               {isTeacher && (
                 <Button
                   variant="ghost"
-                  className="text-white hover:bg-white/20"
+                  className="text-white hover:bg-white/20 bg-white/10 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105"
                   onClick={() => router.push(`/classroom/courses/${params.id}/settings`)}
                 >
                   <Settings className="h-4 w-4 mr-2" />
@@ -160,15 +171,39 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b">
-        <div className="container mx-auto px-4">
+      {/* Modern Navigation Tabs */}
+      <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 shadow-sm sticky top-0 z-20">
+        <div className="container mx-auto px-6">
           <Tabs defaultValue="stream" className="w-full">
-            <TabsList className="w-full justify-start border-0 bg-transparent">
-              <TabsTrigger value="stream">Stream</TabsTrigger>
-              <TabsTrigger value="assignments">Assignments</TabsTrigger>
-              <TabsTrigger value="materials">Materials</TabsTrigger>
-              <TabsTrigger value="discussions">Discussions</TabsTrigger>
+            <TabsList className="w-full justify-start border-0 bg-transparent h-14 gap-1">
+              <TabsTrigger 
+                value="stream" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Stream
+              </TabsTrigger>
+              <TabsTrigger 
+                value="assignments"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <BookOpen className="h-4 w-4 mr-2" />
+                Devoirs
+              </TabsTrigger>
+              <TabsTrigger 
+                value="materials"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Matériaux
+              </TabsTrigger>
+              <TabsTrigger 
+                value="discussions"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg px-6 rounded-lg transition-all hover:bg-gray-100 data-[state=active]:hover:from-purple-600 data-[state=active]:hover:to-blue-700"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Discussions
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="stream">
