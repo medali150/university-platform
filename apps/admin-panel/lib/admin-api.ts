@@ -179,12 +179,12 @@ export const adminAuthApi = {
   // Secure admin login with enhanced validation
   async login(login: string, password: string): Promise<ApiResponse<AdminLoginResponse>> {
     // Pre-validate credentials format
-    if (!login || login.length < 3) {
-      return { success: false, error: 'Invalid admin login format' };
+    if (!login || login.trim().length === 0) {
+      return { success: false, error: 'Please enter admin login' };
     }
     
-    if (!password || password.length < 8) {
-      return { success: false, error: 'Invalid password format' };
+    if (!password || password.length === 0) {
+      return { success: false, error: 'Please enter password' };
     }
 
     const result = await secureAdminApiClient.post<AdminLoginResponse>('/auth/login', { 

@@ -54,20 +54,6 @@ export default function AdminLoginPage() {
       return;
     }
 
-    if (login.length < 3) {
-      setError('Invalid login format');
-      setLoading(false);
-      setAttempts(prev => prev + 1);
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
-      setLoading(false);
-      setAttempts(prev => prev + 1);
-      return;
-    }
-
     try {
       await adminLogin(login.trim(), password);
       // Success - redirect will be handled by useEffect
