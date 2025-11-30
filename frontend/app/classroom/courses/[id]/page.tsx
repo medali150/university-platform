@@ -22,7 +22,8 @@ import {
   Upload,
   Download,
   Eye,
-  FileText
+  FileText,
+  Home
 } from 'lucide-react';
 
 interface CourseHomeProps {
@@ -120,7 +121,7 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
         
         <div className="relative z-10 container mx-auto px-6 py-10">
           <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3">
               <Button
                 variant="ghost"
                 size="icon"
@@ -128,6 +129,14 @@ export default function CourseHomePage({ params }: CourseHomeProps) {
                 onClick={() => router.push('/classroom/courses')}
               >
                 <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 shadow-lg transition-all hover:scale-105 px-4"
+                onClick={() => router.push('/dashboard')}
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Tableau de bord
               </Button>
               <div>
                 <div className="flex items-center gap-3 mb-2">

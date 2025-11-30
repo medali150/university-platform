@@ -23,7 +23,8 @@ import {
   Trash2,
   MessageSquare,
   Brain,
-  Zap
+  Zap,
+  Home
 } from 'lucide-react';
 
 interface Message {
@@ -234,6 +235,14 @@ export default function AIAssistantPage() {
                 onClick={() => router.push('/classroom/courses')}
               >
                 <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-white hover:bg-white/20 transition-colors px-4"
+                onClick={() => router.push('/dashboard')}
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Tableau de bord
               </Button>
               <div>
                 <h1 className="text-2xl font-bold flex items-center gap-3">

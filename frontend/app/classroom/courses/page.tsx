@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PlusCircle, BookOpen, Users, Archive, Grid3x3, List, LogIn, ArrowLeft } from 'lucide-react';
+import { PlusCircle, BookOpen, Users, Archive, Grid3x3, List, LogIn, ArrowLeft, Home } from 'lucide-react';
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -122,6 +122,16 @@ export default function CoursesPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Dashboard Button */}
+              <Button
+                variant="outline"
+                className="border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all"
+                onClick={() => router.push('/dashboard')}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Tableau de bord
+              </Button>
+              
               {/* AI Assistant Button */}
               <Button
                 variant="outline"
