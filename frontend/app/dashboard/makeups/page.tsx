@@ -50,6 +50,7 @@ export default function MakeupsPage() {
   const [teacherInfo, setTeacherInfo] = useState<any>(null)
   const [teacherSubjects, setTeacherSubjects] = useState<any[]>([])
   const [teacherGroups, setTeacherGroups] = useState<any[]>([])
+  const [teacherRooms, setTeacherRooms] = useState<any[]>([])
   const [loadingTeacherData, setLoadingTeacherData] = useState(false)
 
   // Load data
@@ -103,7 +104,10 @@ export default function MakeupsPage() {
 
       if (profileRes.ok && timetableRes.ok) {
         const profile = await profileRes.json()
-        const timetable = await timetableRes.json()
+        const timetableData = await timetableRes.json()
+        
+        // Handle both array and object response
+        const timetable = Array.isArray(timetableData) ? timetableData : (timetableData.schedules || [])
         
         console.log('Teacher Profile:', profile)
         console.log('Teacher Timetable:', timetable)
@@ -111,6 +115,7 @@ export default function MakeupsPage() {
         // Extract unique subjects from timetable
         const subjectsMap = new Map()
         const groupsMap = new Map()
+        const roomsMap = new Map()
         
         timetable.forEach((session: any) => {
           // Add subject
@@ -128,23 +133,50 @@ export default function MakeupsPage() {
               nom: session.groupe.nom
             })
           }
+          
+          // Add room
+          if (session.salle && !roomsMap.has(session.salle.id)) {
+            roomsMap.set(session.salle.id, {
+              id: session.salle.id,
+              code: session.salle.code || session.salle.nom,
+              capacite: session.salle.capacite
+            })
+          }
         })
         
         const subjects = Array.from(subjectsMap.values())
         const groups = Array.from(groupsMap.values())
+        const rooms = Array.from(roomsMap.values())
         
         console.log('Extracted Subjects:', subjects)
         console.log('Extracted Groups:', groups)
+        console.log('Extracted Rooms:', rooms)
         
-        setTeacherInfo(profile.teacher_info)
+        setTeacherInfo(profile.teacher_info || profile)
         setTeacherSubjects(subjects)
         setTeacherGroups(groups)
+        setTeacherRooms(rooms)
         
-        // Auto-fill teacher ID
+        // Auto-fill teacher ID - handle different response structures
+        const teacherId = profile.teacher_info?.id || profile.enseignant_id || profile.id
         setCreateFormData(prev => ({
           ...prev,
-          id_enseignant: profile.teacher_info.id
+          id_enseignant: teacherId
         }))
+        
+        // Show success message
+        if (subjects.length > 0 || groups.length > 0) {
+          toast({
+            title: 'Données chargées',
+            description: `${subjects.length} matière(s) et ${groups.length} groupe(s) trouvé(s) dans votre emploi du temps`,
+          })
+        } else {
+          toast({
+            title: 'Attention',
+            description: 'Aucune matière ou groupe trouvé dans votre emploi du temps. Contactez l\'administrateur.',
+            variant: 'destructive',
+          })
+        }
       } else {
         console.error('API errors:', {
           profile: profileRes.status,
@@ -764,13 +796,26 @@ export default function MakeupsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="id_salle">ID Salle (optionnel)</Label>
-                    <Input
-                      id="id_salle"
-                      placeholder="Ex: sal_123456"
-                      value={createFormData.id_salle || ''}
-                      onChange={(e) => setCreateFormData({ ...createFormData, id_salle: e.target.value })}
-                    />
+                    <Label htmlFor="id_salle">Salle (optionnel)</Label>
+                    <Select 
+                      value={createFormData.id_salle || ''} 
+                      onValueChange={(value) => setCreateFormData({ ...createFormData, id_salle: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez une salle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Aucune salle</SelectItem>
+                        {teacherRooms.map((room) => (
+                          <SelectItem key={room.id} value={room.id}>
+                            {room.code} (Capacité: {room.capacite})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {teacherRooms.length > 0 && (
+                      <p className="text-xs text-gray-500">{teacherRooms.length} salle(s) disponible(s)</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
