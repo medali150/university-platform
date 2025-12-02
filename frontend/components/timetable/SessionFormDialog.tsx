@@ -63,10 +63,11 @@ export function SessionFormDialog({
 }: SessionFormDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
 
-  const { data: subjects = [] } = useQuery({
+  const { data: subjectsData } = useQuery({
     queryKey: ['subjects'],
     queryFn: () => api.getSubjects(),
   })
+  const subjects = subjectsData?.subjects ?? []
 
   const { data: rooms = [] } = useQuery({
     queryKey: ['rooms'],
@@ -138,17 +139,18 @@ export function SessionFormDialog({
     
     try {
       const subject = subjects.find(s => s.id === data.subjectId)
-      const sessionData = {
+      const sessionData: Partial<Schedule> = {
         ...data,
         teacherId: subject?.teacherId || '',
+        status: data.status as any,
       }
       
       await onSave(sessionData)
-      toast.success(session ? 'Session updated successfully' : 'Session created successfully')
+      toast.success(session ? 'Séance mise à jour avec succès' : 'Séance créée avec succès')
       onOpenChange(false)
     } catch (error: any) {
       console.error('Failed to save session:', error)
-      toast.error('Failed to save session. Please try again.')
+      toast.error('Erreur lors de l\'enregistrement de la séance. Veuillez réessayer.')
     } finally {
       setIsLoading(false)
     }
@@ -161,11 +163,11 @@ export function SessionFormDialog({
     
     try {
       await onDelete()
-      toast.success('Session deleted successfully')
+      toast.success('Séance supprimée avec succès')
       onOpenChange(false)
     } catch (error: any) {
       console.error('Failed to delete session:', error)
-      toast.error('Failed to delete session. Please try again.')
+      toast.error('Erreur lors de la suppression de la séance. Veuillez réessayer.')
     } finally {
       setIsLoading(false)
     }
@@ -193,29 +195,31 @@ export function SessionFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>
-            {session ? 'Edit Session' : 'Create Session'}
+      <DialogContent className="sm:max-w-[600px] border-0 shadow-xl">
+        <DialogHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white -m-6 mb-0 p-6 rounded-t-lg">
+          <DialogTitle className="text-white text-lg">
+            {session ? '✏️ Modifier une séance' : '➕ Créer une nouvelle séance'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-indigo-100">
             {session 
-              ? 'Update the session details below.'
-              : 'Fill in the details to create a new session.'
+              ? 'Mettez à jour les informations de la séance ci-dessous.'
+              : 'Remplissez les détails pour créer une nouvelle séance.'
             }
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="subjectId">Subject</Label>
+              <Label htmlFor="subjectId" className="font-semibold text-gray-700">
+                Matière <span className="text-red-500">*</span>
+              </Label>
               <Select 
                 value={watch('subjectId')} 
                 onValueChange={(value) => setValue('subjectId', value)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select subject" />
+                <SelectTrigger className="border-gray-300 hover:border-indigo-400 focus:border-indigo-600 transition-colors">
+                  <SelectValue placeholder="Sélectionner une matière" />
                 </SelectTrigger>
                 <SelectContent>
                   {subjects.map((subject) => (
@@ -226,18 +230,20 @@ export function SessionFormDialog({
                 </SelectContent>
               </Select>
               {errors.subjectId && (
-                <p className="text-sm text-destructive">{errors.subjectId.message}</p>
+                <p className="text-sm text-red-500 font-medium">{errors.subjectId.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="groupId">Group</Label>
+              <Label htmlFor="groupId" className="font-semibold text-gray-700">
+                Groupe <span className="text-red-500">*</span>
+              </Label>
               <Select 
                 value={watch('groupId')} 
                 onValueChange={(value) => setValue('groupId', value)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select group" />
+                <SelectTrigger className="border-gray-300 hover:border-indigo-400 focus:border-indigo-600 transition-colors">
+                  <SelectValue placeholder="Sélectionner un groupe" />
                 </SelectTrigger>
                 <SelectContent>
                   {groups.map((group) => (
@@ -248,124 +254,141 @@ export function SessionFormDialog({
                 </SelectContent>
               </Select>
               {errors.groupId && (
-                <p className="text-sm text-destructive">{errors.groupId.message}</p>
+                <p className="text-sm text-red-500 font-medium">{errors.groupId.message}</p>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="roomId">Room</Label>
+              <Label htmlFor="roomId" className="font-semibold text-gray-700">
+                Salle <span className="text-red-500">*</span>
+              </Label>
               <Select 
                 value={watch('roomId')} 
                 onValueChange={(value) => setValue('roomId', value)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select room" />
+                <SelectTrigger className="border-gray-300 hover:border-indigo-400 focus:border-indigo-600 transition-colors">
+                  <SelectValue placeholder="Sélectionner une salle" />
                 </SelectTrigger>
                 <SelectContent>
                   {rooms.map((room) => (
                     <SelectItem key={room.id} value={room.id}>
-                      {room.name} (Capacity: {room.capacity})
+                      {room.name} (Cap: {room.capacity})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {errors.roomId && (
-                <p className="text-sm text-destructive">{errors.roomId.message}</p>
+                <p className="text-sm text-red-500 font-medium">{errors.roomId.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date" className="font-semibold text-gray-700">
+                Date <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="date"
                 type="date"
                 {...register('date')}
                 disabled={isLoading}
+                className="border-gray-300 hover:border-indigo-400 focus:border-indigo-600 transition-colors"
               />
               {errors.date && (
-                <p className="text-sm text-destructive">{errors.date.message}</p>
+                <p className="text-sm text-red-500 font-medium">{errors.date.message}</p>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startTime">Start Time</Label>
+              <Label htmlFor="startTime" className="font-semibold text-gray-700">
+                Début <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="startTime"
                 type="time"
                 {...register('startTime')}
                 onChange={(e) => handleStartTimeChange(e.target.value)}
                 disabled={isLoading}
+                className="border-gray-300 hover:border-indigo-400 focus:border-indigo-600 transition-colors"
               />
               {errors.startTime && (
-                <p className="text-sm text-destructive">{errors.startTime.message}</p>
+                <p className="text-sm text-red-500 font-medium">{errors.startTime.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="endTime">End Time</Label>
+              <Label htmlFor="endTime" className="font-semibold text-gray-700">
+                Fin <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="endTime"
                 type="time"
                 {...register('endTime')}
                 disabled={isLoading}
+                className="border-gray-300 hover:border-indigo-400 focus:border-indigo-600 transition-colors"
               />
               {errors.endTime && (
-                <p className="text-sm text-destructive">{errors.endTime.message}</p>
+                <p className="text-sm text-red-500 font-medium">{errors.endTime.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status" className="font-semibold text-gray-700">
+                Statut <span className="text-red-500">*</span>
+              </Label>
               <Select 
                 value={watch('status')} 
                 onValueChange={(value) => setValue('status', value as any)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-gray-300 hover:border-indigo-400 focus:border-indigo-600 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PLANNED">Planned</SelectItem>
-                  <SelectItem value="MAKEUP">Make-up</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  <SelectItem value="PLANNED">Programmée</SelectItem>
+                  <SelectItem value="MAKEUP">Rattrapage</SelectItem>
+                  <SelectItem value="CANCELLED">Annulée</SelectItem>
                 </SelectContent>
               </Select>
               {errors.status && (
-                <p className="text-sm text-destructive">{errors.status.message}</p>
+                <p className="text-sm text-red-500 font-medium">{errors.status.message}</p>
               )}
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 pt-4 border-t">
             {session && onDelete && (
               <Button
                 type="button"
-                variant="destructive"
                 onClick={handleDelete}
                 disabled={isLoading}
+                className="bg-red-600 hover:bg-red-700 text-white transition-all duration-200"
               >
                 {isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Trash2 className="mr-2 h-4 w-4" />
                 )}
-                Delete
+                Supprimer
               </Button>
             )}
             <Button
               type="button"
-              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isLoading}
+              className="bg-gray-200 text-gray-900 hover:bg-gray-300 transition-all duration-200"
             >
-              Cancel
+              Annuler
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              disabled={isLoading}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-lg transition-all duration-200"
+            >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {session ? 'Update' : 'Create'}
+              {session ? 'Mettre à jour' : 'Créer'}
             </Button>
           </DialogFooter>
         </form>
