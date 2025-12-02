@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PlusCircle, BookOpen, Users, Archive, Grid3x3, List, LogIn, Search, Zap, Loader2 } from 'lucide-react';
+import { PlusCircle, BookOpen, Users, Archive, Grid3x3, List, LogIn, Search, Zap, Loader2, Home, ArrowLeft } from 'lucide-react';
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -114,25 +114,50 @@ export default function CoursesPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6 md:p-8">
-      {/* Modern Gradient Header */}
-      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 sm:p-8 md:p-10 text-white">
+      {/* Back Button */}
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push('/dashboard')}
+          className="group bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 border-gray-200 shadow-sm"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+          Retour au tableau de bord
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push('/')}
+          className="group bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 border-gray-200 shadow-sm"
+        >
+          <Home className="h-4 w-4 mr-2" />
+          Accueil
+        </Button>
+      </div>
+
+      {/* Modern Gradient Header - Matching Messages Theme */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 sm:p-8 md:p-10 text-white shadow-lg">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
         </div>
         <div className="relative z-10">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-2">
-            Mes cours 📚
-          </h1>
-          <p className="text-indigo-100 text-base sm:text-lg">
+          <div className="flex items-center gap-3 mb-2">
+            <BookOpen className="h-8 w-8" />
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
+              Mes Cours 📚
+            </h1>
+          </div>
+          <p className="text-blue-100 text-base sm:text-lg">
             {isTeacher
               ? 'Gérez vos cours, devoirs et suivez vos étudiants'
-              : 'Afficher vos cours inscrits et progressez'}
+              : 'Consultez vos cours inscrits et progressez'}
           </p>
         </div>
       </div>
 
-      {/* Search and Controls Bar */}
+      {/* Search and Controls Bar - Enhanced with Gradient Theme */}
       <div className="space-y-4 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
         {/* Search Input */}
         <div className="flex-1 relative">
@@ -141,7 +166,7 @@ export default function CoursesPage() {
             placeholder="Rechercher un cours..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-10 rounded-lg border-2 border-gray-200 focus:border-indigo-500 focus:ring-indigo-500"
+            className="pl-10 h-10 rounded-lg bg-white border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
@@ -150,20 +175,20 @@ export default function CoursesPage() {
           {/* AI Assistant Button */}
           <Button
             size="sm"
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0"
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 shadow-md"
             onClick={() => router.push('/classroom/ai-assistant')}
           >
             <Zap className="h-4 w-4 mr-1.5" />
-            <span className="hidden sm:inline">IA</span>
+            <span className="hidden sm:inline">Assistant IA</span>
           </Button>
 
           {/* View Mode Toggle */}
-          <div className="flex gap-1 border border-gray-200 rounded-lg p-1 bg-white">
+          <div className="flex gap-1 border border-gray-200 rounded-lg p-1 bg-white shadow-sm">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('grid')}
-              className="h-8 px-2"
+              className={`h-8 px-2 ${viewMode === 'grid' ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' : ''}`}
             >
               <Grid3x3 className="h-4 w-4" />
             </Button>
@@ -171,7 +196,7 @@ export default function CoursesPage() {
               variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="h-8 px-2"
+              className={`h-8 px-2 ${viewMode === 'list' ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' : ''}`}
             >
               <List className="h-4 w-4" />
             </Button>
@@ -182,7 +207,7 @@ export default function CoursesPage() {
             variant="outline"
             size="sm"
             onClick={() => setShowArchived(!showArchived)}
-            className="border-gray-200"
+            className="border-gray-200 bg-white hover:bg-gray-50 shadow-sm"
           >
             <Archive className="h-4 w-4 mr-1.5" />
             <span className="hidden sm:inline">{showArchived ? 'Actifs' : 'Archives'}</span>
@@ -192,18 +217,18 @@ export default function CoursesPage() {
           {isTeacher && (
             <Button
               size="sm"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md"
               onClick={handleCreateCourse}
             >
               <PlusCircle className="h-4 w-4 mr-1.5" />
-              <span className="hidden sm:inline">Créer</span>
+              <span className="hidden sm:inline">Créer un cours</span>
             </Button>
           )}
 
           {isStudent && (
             <Button
               size="sm"
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-md"
               onClick={() => setShowEnrollDialog(true)}
             >
               <LogIn className="h-4 w-4 mr-1.5" />
@@ -215,13 +240,13 @@ export default function CoursesPage() {
 
       {/* Courses Grid/List */}
       {filteredCourses.length === 0 ? (
-        <Card className="p-12 text-center border-0 shadow-lg bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card className="p-12 text-center border-0 shadow-xl bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
           <div className="flex flex-col items-center gap-4">
-            <div className="p-3 rounded-full bg-indigo-100">
-              <BookOpen className="h-8 w-8 text-indigo-600" />
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <BookOpen className="h-10 w-10 text-white" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">Pas encore de cours</h3>
-            <p className="text-gray-600 max-w-md">
+            <h3 className="text-2xl font-bold text-gray-900">Pas encore de cours</h3>
+            <p className="text-gray-600 max-w-md text-base">
               {searchQuery
                 ? "Aucun cours ne correspond à votre recherche"
                 : isTeacher
@@ -231,13 +256,13 @@ export default function CoursesPage() {
             {!searchQuery && (
               <div className="flex flex-col sm:flex-row gap-3 mt-4">
                 {isTeacher && (
-                  <Button onClick={handleCreateCourse} className="bg-indigo-600 hover:bg-indigo-700">
+                  <Button onClick={handleCreateCourse} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-md">
                     <PlusCircle className="h-4 w-4 mr-2" />
                     Créer un cours
                   </Button>
                 )}
                 {isStudent && (
-                  <Button onClick={() => setShowEnrollDialog(true)} variant="outline">
+                  <Button onClick={() => setShowEnrollDialog(true)} className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-md">
                     <LogIn className="h-4 w-4 mr-2" />
                     Rejoindre un cours
                   </Button>
@@ -257,49 +282,54 @@ export default function CoursesPage() {
           {filteredCourses.map((course) => (
             <Card
               key={course.id}
-              className="group cursor-pointer border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden hover:-translate-y-1"
+              className="group cursor-pointer border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden hover:-translate-y-2 bg-white"
               onClick={() => handleCourseClick(course.id)}
             >
               <CardHeader
-                className="pb-4 text-white relative overflow-hidden"
+                className="pb-4 text-white relative overflow-hidden shadow-md"
                 style={{
                   background: `linear-gradient(135deg, ${getRandomColor(course.id)} 0%, ${getRandomColor(course.id)}CC 100%)`,
                 }}
               >
                 <div className="absolute inset-0 opacity-10">
                   <div className="absolute top-0 right-0 w-20 h-20 bg-white rounded-full blur-xl"></div>
+                  <div className="absolute bottom-0 left-0 w-20 h-20 bg-white rounded-full blur-xl"></div>
                 </div>
                 <div className="relative z-10">
-                  <CardTitle className="text-lg sm:text-xl group-hover:translate-x-1 transition-transform">
+                  <CardTitle className="text-lg sm:text-xl font-bold group-hover:translate-x-1 transition-transform">
                     {course.nom}
                   </CardTitle>
-                  <CardDescription className="text-white/80 text-xs sm:text-sm">
+                  <CardDescription className="text-white/90 text-xs sm:text-sm font-medium">
                     {course.anneeAcademique} • {course.semestre}
                     {course.code && ` • ${course.code}`}
                   </CardDescription>
                 </div>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 bg-gradient-to-br from-white to-gray-50">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1.5 text-gray-600">
-                        <Users className="h-4 w-4" />
-                        <span className="font-medium">{course.nbEtudiants || 0} élèves</span>
+                      <div className="flex items-center gap-1.5 text-gray-700">
+                        <div className="p-1.5 rounded-lg bg-blue-100">
+                          <Users className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <span className="font-semibold">{course.nbEtudiants || 0}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-gray-600">
-                        <BookOpen className="h-4 w-4" />
-                        <span className="font-medium">{course.nbDevoirs || 0} travaux</span>
+                      <div className="flex items-center gap-1.5 text-gray-700">
+                        <div className="p-1.5 rounded-lg bg-purple-100">
+                          <BookOpen className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <span className="font-semibold">{course.nbDevoirs || 0}</span>
                       </div>
                     </div>
                     {!course.estActif && (
-                      <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                      <span className="px-3 py-1 rounded-full bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 text-xs font-semibold shadow-sm">
                         Archivé
                       </span>
                     )}
                   </div>
                   {course.description && (
-                    <p className="text-sm text-gray-600 line-clamp-2 pt-2 border-t border-gray-100">
+                    <p className="text-sm text-gray-600 line-clamp-2 pt-2 border-t border-gray-200">
                       {course.description}
                     </p>
                   )}
@@ -310,25 +340,27 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {/* Enroll Dialog */}
+      {/* Enroll Dialog - Enhanced Design */}
       <Dialog open={showEnrollDialog} onOpenChange={setShowEnrollDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Rejoindre un cours</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-2xl font-bold text-gray-900">Rejoindre un cours</DialogTitle>
+            <DialogDescription className="text-gray-600">
               Entrez le code d'invitation fourni par votre enseignant
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Input
-              placeholder="Code d'invitation (ex: ABC123)"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              maxLength={6}
-              className="text-center text-lg font-mono tracking-wider"
-            />
+            <div className="relative">
+              <Input
+                placeholder="Code d'invitation (ex: ABC123)"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                maxLength={6}
+                className="text-center text-xl font-mono tracking-wider h-14 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-gradient-to-br from-blue-50 to-purple-50"
+              />
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -336,17 +368,25 @@ export default function CoursesPage() {
                 setInviteCode('');
               }}
               disabled={enrollLoading}
+              className="border-gray-300 hover:bg-gray-50"
             >
               Annuler
             </Button>
-            <Button onClick={handleEnrollWithCode} disabled={enrollLoading || !inviteCode}>
+            <Button 
+              onClick={handleEnrollWithCode} 
+              disabled={enrollLoading || !inviteCode}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-md"
+            >
               {enrollLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Inscription...
                 </>
               ) : (
-                'Rejoindre'
+                <>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Rejoindre
+                </>
               )}
             </Button>
           </DialogFooter>
