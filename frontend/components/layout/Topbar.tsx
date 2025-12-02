@@ -53,9 +53,11 @@ export function Topbar() {
   }, [user])
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-background px-6">
+    <header className="flex h-16 items-center justify-between border-b bg-gradient-to-r from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 px-6 shadow-sm">
       <div className="flex items-center space-x-4">
-        <h1 className="text-lg font-semibold">University Management Platform</h1>
+        <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          University Platform 🎓
+        </h1>
       </div>
 
       <div className="flex items-center space-x-4">
@@ -63,6 +65,7 @@ export function Topbar() {
           variant="ghost"
           size="icon"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
         >
           <SunIcon className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <MoonIcon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -73,7 +76,7 @@ export function Topbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="relative"
+            className="relative hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             onClick={() => router.push('/dashboard/notifications')}
             title="Notifications"
           >
