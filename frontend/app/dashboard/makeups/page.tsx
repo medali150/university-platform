@@ -6,11 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { BookOpen, Calendar, Clock, Users, Search, Plus, Check, X, Eye, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import {
   getMakeupSessions,
   getMakeupStats,
+  createMakeupSession,
   reviewMakeupSession,
   scheduleMakeupSession,
   completeMakeupSession,
@@ -21,6 +25,7 @@ import {
   type MakeupSession,
   type MakeupStats,
   type MakeupStatus,
+  type CreateMakeupSession,
 } from '@/lib/makeup-api'
 import { useToast } from '@/hooks/use-toast'
 
@@ -36,6 +41,10 @@ export default function MakeupsPage() {
   const [statusFilter, setStatusFilter] = useState<MakeupStatus | 'ALL'>('ALL')
   const [selectedSession, setSelectedSession] = useState<MakeupSession | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [createFormData, setCreateFormData] = useState<Partial<CreateMakeupSession>>({
+    motif: '',
+  })
 
   // Load data
   useEffect(() => {
@@ -167,6 +176,45 @@ export default function MakeupsPage() {
     }
   }
 
+  const handleCreateSession = async () => {
+    try {
+      // Validate form data
+      if (!createFormData.id_emploitemps_origin || !createFormData.id_matiere || 
+          !createFormData.id_enseignant || !createFormData.id_groupe ||
+          !createFormData.date_originale || !createFormData.heure_debut_origin ||
+          !createFormData.heure_fin_origin || !createFormData.date_proposee ||
+          !createFormData.heure_debut_proposee || !createFormData.heure_fin_proposee ||
+          !createFormData.motif) {
+        toast({
+          title: 'Erreur',
+          description: 'Veuillez remplir tous les champs obligatoires',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      setActionLoading(true)
+      await createMakeupSession(createFormData as CreateMakeupSession)
+      
+      toast({
+        title: 'Succès',
+        description: 'Demande de rattrapage créée avec succès',
+      })
+      
+      setShowCreateDialog(false)
+      setCreateFormData({ motif: '' })
+      await loadData()
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: error instanceof Error ? error.message : 'Erreur lors de la création',
+        variant: 'destructive',
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   if (loading || loadingData) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -215,6 +263,7 @@ export default function MakeupsPage() {
             <Button
               size="lg"
               className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
+              onClick={() => setShowCreateDialog(true)}
             >
               <Plus className="mr-2 h-5 w-5" />
               Nouvelle demande
@@ -503,6 +552,186 @@ export default function MakeupsPage() {
           ))
         )}
       </div>
+
+      {/* Create Makeup Session Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Nouvelle demande de rattrapage
+            </DialogTitle>
+            <DialogDescription>
+              Remplissez les informations pour créer une demande de séance de rattrapage
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Original Session Info */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg">Séance originale (annulée)</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="id_emploitemps_origin">ID Emploi du temps *</Label>
+                  <Input
+                    id="id_emploitemps_origin"
+                    placeholder="Ex: et_123456"
+                    value={createFormData.id_emploitemps_origin || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, id_emploitemps_origin: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="id_matiere">ID Matière *</Label>
+                  <Input
+                    id="id_matiere"
+                    placeholder="Ex: mat_123456"
+                    value={createFormData.id_matiere || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, id_matiere: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="id_enseignant">ID Enseignant *</Label>
+                  <Input
+                    id="id_enseignant"
+                    placeholder="Ex: ens_123456"
+                    value={createFormData.id_enseignant || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, id_enseignant: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="id_groupe">ID Groupe *</Label>
+                  <Input
+                    id="id_groupe"
+                    placeholder="Ex: grp_123456"
+                    value={createFormData.id_groupe || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, id_groupe: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="date_originale">Date originale *</Label>
+                  <Input
+                    id="date_originale"
+                    type="date"
+                    value={createFormData.date_originale || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, date_originale: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="id_salle">ID Salle (optionnel)</Label>
+                  <Input
+                    id="id_salle"
+                    placeholder="Ex: sal_123456"
+                    value={createFormData.id_salle || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, id_salle: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="heure_debut_origin">Heure début *</Label>
+                  <Input
+                    id="heure_debut_origin"
+                    type="time"
+                    value={createFormData.heure_debut_origin || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, heure_debut_origin: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="heure_fin_origin">Heure fin *</Label>
+                  <Input
+                    id="heure_fin_origin"
+                    type="time"
+                    value={createFormData.heure_fin_origin || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, heure_fin_origin: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4 space-y-3">
+              <h3 className="font-semibold text-lg">Séance proposée</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date_proposee">Date proposée *</Label>
+                  <Input
+                    id="date_proposee"
+                    type="date"
+                    value={createFormData.date_proposee || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, date_proposee: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="heure_debut_proposee">Heure début *</Label>
+                  <Input
+                    id="heure_debut_proposee"
+                    type="time"
+                    value={createFormData.heure_debut_proposee || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, heure_debut_proposee: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="heure_fin_proposee">Heure fin *</Label>
+                  <Input
+                    id="heure_fin_proposee"
+                    type="time"
+                    value={createFormData.heure_fin_proposee || ''}
+                    onChange={(e) => setCreateFormData({ ...createFormData, heure_fin_proposee: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="motif">Motif de l'annulation *</Label>
+              <Textarea
+                id="motif"
+                placeholder="Expliquez la raison de l'annulation de la séance originale..."
+                value={createFormData.motif || ''}
+                onChange={(e) => setCreateFormData({ ...createFormData, motif: e.target.value })}
+                rows={4}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateDialog(false)
+                setCreateFormData({ motif: '' })
+              }}
+              disabled={actionLoading}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleCreateSession}
+              disabled={actionLoading}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            >
+              {actionLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Création...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Créer la demande
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
