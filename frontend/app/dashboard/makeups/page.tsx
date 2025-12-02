@@ -141,107 +141,123 @@ export default function MakeupsPage() {
   const canManageMakeups = user?.role === 'DEPARTMENT_HEAD' || user?.role === 'TEACHER' || user?.role === 'ADMIN'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sessions de Rattrapage</h1>
-          <p className="text-muted-foreground">
-            {user?.role === 'STUDENT' 
-              ? 'Consultez vos sessions de rattrapage' 
-              : 'Gérez et organisez les sessions de rattrapage'
-            }
-          </p>
+    <div className="space-y-6 p-4 sm:p-6 md:p-8">
+      {/* Modern Gradient Header - Matching Dashboard Theme */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 sm:p-8 md:p-10 text-white shadow-lg">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
         </div>
-        {canManageMakeups && (
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Nouvelle Session
-          </Button>
-        )}
+        <div className="relative z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <BookOpen className="h-8 w-8" />
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
+                  Sessions de Rattrapage 📅
+                </h1>
+              </div>
+              <p className="text-blue-100 text-base sm:text-lg">
+                {user?.role === 'STUDENT' 
+                  ? 'Consultez vos sessions de rattrapage' 
+                  : 'Gérez et organisez les sessions de rattrapage'
+                }
+              </p>
+            </div>
+            {canManageMakeups && (
+              <Button className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg">
+                <Plus className="mr-2 h-4 w-4" />
+                Nouvelle Session
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Modern Design */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{makeupSessions.length}</div>
-            <p className="text-xs text-muted-foreground">Ce mois-ci</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Attente</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {makeupSessions.filter(session => session.status === 'pending').length}
+        {[
+          {
+            title: 'Total Sessions',
+            value: makeupSessions.length,
+            icon: BookOpen,
+            color: 'from-blue-500 to-blue-600',
+            trend: 'Ce mois-ci'
+          },
+          {
+            title: 'En Attente',
+            value: makeupSessions.filter(session => session.status === 'pending').length,
+            icon: Clock,
+            color: 'from-yellow-500 to-yellow-600',
+            trend: 'À valider'
+          },
+          {
+            title: 'Programmées',
+            value: makeupSessions.filter(session => session.status === 'scheduled').length,
+            icon: Calendar,
+            color: 'from-green-500 to-green-600',
+            trend: 'À venir'
+          },
+          {
+            title: 'Terminées',
+            value: makeupSessions.filter(session => session.status === 'completed').length,
+            icon: Check,
+            color: 'from-gray-500 to-gray-600',
+            trend: 'Réalisées'
+          },
+          {
+            title: 'Étudiants',
+            value: new Set(makeupSessions.flatMap(session => session.students)).size,
+            icon: Users,
+            color: 'from-purple-500 to-purple-600',
+            trend: 'Concernés'
+          }
+        ].map((stat, idx) => {
+          const Icon = stat.icon
+          return (
+            <div 
+              key={idx}
+              className="group relative overflow-hidden rounded-lg bg-white p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
+              <div className="relative z-10">
+                <div className="flex justify-between items-start mb-4">
+                  <div className={`p-3 rounded-lg bg-gradient-to-br ${stat.color} text-white shadow-md`}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                </div>
+                <h3 className="text-gray-600 text-sm font-medium mb-1">{stat.title}</h3>
+                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{stat.trend}</p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">À valider</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Programmées</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {makeupSessions.filter(session => session.status === 'scheduled').length}
-            </div>
-            <p className="text-xs text-muted-foreground">À venir</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Terminées</CardTitle>
-            <Check className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-600">
-              {makeupSessions.filter(session => session.status === 'completed').length}
-            </div>
-            <p className="text-xs text-muted-foreground">Réalisées</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Étudiants</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(makeupSessions.flatMap(session => session.students)).size}
-            </div>
-            <p className="text-xs text-muted-foreground">Concernés</p>
-          </CardContent>
-        </Card>
+          )
+        })}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Makeup Sessions List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Sessions de Rattrapage</CardTitle>
-            <CardDescription>
-              {user?.role === 'STUDENT' ? 'Vos sessions programmées' : 'Toutes les sessions'}
-            </CardDescription>
-            <div className="flex items-center space-x-2">
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-cyan-50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20 text-blue-600">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Sessions de Rattrapage</CardTitle>
+                <CardDescription>
+                  {user?.role === 'STUDENT' ? 'Vos sessions programmées' : 'Toutes les sessions'}
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 mt-4">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Rechercher dans les sessions..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 rounded-lg bg-white border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -287,16 +303,23 @@ export default function MakeupsPage() {
         </Card>
 
         {/* Makeup Session Detail */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {selectedMakeupData ? 'Détail de la Session' : 'Sélectionnez une Session'}
-            </CardTitle>
-            {selectedMakeupData && (
-              <CardDescription>
-                {selectedMakeupData.subject} • {selectedMakeupData.teacher}
-              </CardDescription>
-            )}
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="pb-4 bg-gradient-to-r from-purple-50 to-pink-50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/20 text-purple-600">
+                <Eye className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>
+                  {selectedMakeupData ? 'Détail de la Session' : 'Sélectionnez une Session'}
+                </CardTitle>
+                {selectedMakeupData && (
+                  <CardDescription>
+                    {selectedMakeupData.subject} • {selectedMakeupData.teacher}
+                  </CardDescription>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {selectedMakeupData ? (

@@ -120,7 +120,7 @@ export default function CoursesPage() {
           variant="outline"
           size="sm"
           onClick={() => router.push('/dashboard')}
-          className="group bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 border-gray-200 shadow-sm"
+          className="group bg-white hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-600 border-2 border-gray-200 hover:border-transparent shadow-md hover:shadow-lg hover:text-white transition-all duration-200"
         >
           <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Retour au tableau de bord
@@ -129,9 +129,9 @@ export default function CoursesPage() {
           variant="outline"
           size="sm"
           onClick={() => router.push('/')}
-          className="group bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 border-gray-200 shadow-sm"
+          className="group bg-white hover:bg-gradient-to-r hover:from-green-500 hover:to-emerald-600 border-2 border-gray-200 hover:border-transparent shadow-md hover:shadow-lg hover:text-white transition-all duration-200"
         >
-          <Home className="h-4 w-4 mr-2" />
+          <Home className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
           Accueil
         </Button>
       </div>

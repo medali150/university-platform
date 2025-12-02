@@ -330,104 +330,134 @@ export default function AbsencesPage() {
   const canManageAbsences = user?.role === 'DEPARTMENT_HEAD' || user?.role === 'TEACHER' || user?.role === 'ADMIN'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestion des Absences</h1>
-          <p className="text-muted-foreground">
-            {user?.role === 'STUDENT' 
-              ? 'Gérez vos justifications d\'absence' 
-              : user?.role === 'DEPARTMENT_HEAD'
-              ? '🎯 Interface Chef de Département - Validez et gérez les absences de votre département'
-              : user?.role === 'TEACHER'
-              ? '👨‍🏫 Interface Enseignant - Gérez les absences de vos cours'
-              : 'Validez et gérez les absences des étudiants'
-            }
-          </p>
-          {error && (
-            <div className="mt-2 text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-lg">
-              ⚠️ {error}
-            </div>
-          )}
+    <div className="space-y-6 p-4 sm:p-6 md:p-8">
+      {/* Modern Gradient Header - Matching Dashboard Theme */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 sm:p-8 md:p-10 text-white shadow-lg">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
         </div>
-        <div className="flex gap-2">
-          {user?.role === 'STUDENT' && (
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Déclarer une Absence
-            </Button>
-          )}
-          {user?.role === 'DEPARTMENT_HEAD' && (
-            <div className="text-right">
-              <div className="text-sm font-medium text-blue-700">Chef de Département</div>
-              <div className="text-xs text-blue-600">Pouvoir d'approbation</div>
+        <div className="relative z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <UserX className="h-8 w-8" />
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
+                  Gestion des Absences 📋
+                </h1>
+              </div>
+              <p className="text-blue-100 text-base sm:text-lg">
+                {user?.role === 'STUDENT' 
+                  ? 'Gérez vos justifications d\'absence' 
+                  : user?.role === 'DEPARTMENT_HEAD'
+                  ? 'Interface Chef de Département - Validez et gérez les absences'
+                  : user?.role === 'TEACHER'
+                  ? 'Interface Enseignant - Gérez les absences de vos cours'
+                  : 'Validez et gérez les absences des étudiants'
+                }
+              </p>
+              {error && (
+                <div className="mt-3 text-sm text-white bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/30">
+                  ⚠️ {error}
+                </div>
+              )}
             </div>
-          )}
+            <div className="flex gap-2">
+              {user?.role === 'STUDENT' && (
+                <Button className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Déclarer une Absence
+                </Button>
+              )}
+              {user?.role === 'DEPARTMENT_HEAD' && (
+                <div className="text-right bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/30">
+                  <div className="text-sm font-bold text-white">Chef de Département</div>
+                  <div className="text-xs text-blue-100">Pouvoir d'approbation</div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Modern Design */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Absences</CardTitle>
-            <UserX className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{absences.length}</div>
-            <p className="text-xs text-muted-foreground">Ce mois-ci</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Attente</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {absences.filter(abs => abs.statut === 'pending_review').length}
+        {[
+          {
+            title: 'Total Absences',
+            value: absences.length,
+            icon: UserX,
+            color: 'from-blue-500 to-blue-600',
+            bgColor: 'bg-blue-100',
+            textColor: 'text-blue-600',
+            trend: 'Ce mois-ci'
+          },
+          {
+            title: 'En Attente',
+            value: absences.filter(abs => abs.statut === 'pending_review').length,
+            icon: Clock,
+            color: 'from-orange-500 to-orange-600',
+            bgColor: 'bg-orange-100',
+            textColor: 'text-orange-600',
+            trend: 'À traiter'
+          },
+          {
+            title: 'Approuvées',
+            value: absences.filter(abs => abs.statut === 'approved' || abs.statut === 'justified').length,
+            icon: Check,
+            color: 'from-green-500 to-green-600',
+            bgColor: 'bg-green-100',
+            textColor: 'text-green-600',
+            trend: 'Justifiées'
+          },
+          {
+            title: 'Rejetées',
+            value: absences.filter(abs => abs.statut === 'rejected').length,
+            icon: X,
+            color: 'from-red-500 to-red-600',
+            bgColor: 'bg-red-100',
+            textColor: 'text-red-600',
+            trend: 'Non justifiées'
+          }
+        ].map((stat, idx) => {
+          const Icon = stat.icon
+          return (
+            <div 
+              key={idx}
+              className="group relative overflow-hidden rounded-lg bg-white p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
+              <div className="relative z-10">
+                <div className="flex justify-between items-start mb-4">
+                  <div className={`p-3 rounded-lg bg-gradient-to-br ${stat.color} text-white shadow-md`}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                </div>
+                <h3 className="text-gray-600 text-sm font-medium mb-1">{stat.title}</h3>
+                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{stat.trend}</p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">À traiter</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approuvées</CardTitle>
-            <Check className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {absences.filter(abs => abs.statut === 'approved' || abs.statut === 'justified').length}
-            </div>
-            <p className="text-xs text-muted-foreground">Justifiées</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejetées</CardTitle>
-            <X className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {absences.filter(abs => abs.statut === 'rejected').length}
-            </div>
-            <p className="text-xs text-muted-foreground">Non justifiées</p>
-          </CardContent>
-        </Card>
+          )
+        })}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Absences List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Liste des Absences</CardTitle>
-            <CardDescription>
-              {user?.role === 'STUDENT' ? 'Vos absences déclarées' : 'Absences à traiter'}
-            </CardDescription>
-            <div className="flex items-center space-x-2">
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-cyan-50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20 text-blue-600">
+                <UserX className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Liste des Absences</CardTitle>
+                <CardDescription>
+                  {user?.role === 'STUDENT' ? 'Vos absences déclarées' : 'Absences à traiter'}
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 mt-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
