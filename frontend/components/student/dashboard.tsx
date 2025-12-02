@@ -16,7 +16,11 @@ import {
   CheckCircle,
   XCircle,
   CalendarDays,
-  GraduationCap
+  GraduationCap,
+  TrendingUp,
+  Award,
+  Target,
+  ActivityIcon
 } from 'lucide-react';
 import { StudentAPI, StudentSchedule, StudentProfile } from '@/lib/student-api';
 
@@ -207,9 +211,11 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Chargement du tableau de bord...</span>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="text-white/60">Chargement de votre tableau de bord...</p>
+        </div>
       </div>
     );
   }
@@ -233,33 +239,39 @@ export default function StudentDashboard() {
   });
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Welcome Section */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">
-          {getWelcomeMessage()}, {profile?.prenom} !
-        </h1>
-        <p className="text-muted-foreground text-lg">
-          {today}
-        </p>
+    <div className="space-y-6 p-4 sm:p-6 md:p-8">
+      {/* Modern Gradient Header */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 sm:p-8 md:p-10 text-white">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+        </div>
+        <div className="relative z-10">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-2">
+            Bienvenue, {profile?.prenom}! 👋
+          </h1>
+          <p className="text-indigo-100 text-base sm:text-lg">
+            {today}
+          </p>
+        </div>
       </div>
 
       {/* Quick Profile Summary */}
       {profile && (
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <GraduationCap className="h-6 w-6 text-blue-600" />
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50">
+          <CardContent className="p-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white shadow-lg">
+                  <GraduationCap className="h-7 w-7" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{profile.prenom} {profile.nom}</h3>
-                  <p className="text-sm text-gray-600">{profile.groupe.nom}</p>
+                  <h3 className="font-bold text-lg text-gray-900">{profile.prenom} {profile.nom}</h3>
+                  <p className="text-sm text-gray-600">📚 {profile.groupe.nom}</p>
                 </div>
               </div>
               <Link href="/dashboard/student/profile">
-                <Button variant="outline" size="sm">
+                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
                   Voir le profil
                 </Button>
               </Link>
@@ -268,61 +280,59 @@ export default function StudentDashboard() {
         </Card>
       )}
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Cours aujourd'hui</p>
-                <p className="text-2xl font-bold text-blue-600">{todaySchedule.length}</p>
-              </div>
-              <CalendarDays className="h-8 w-8 text-blue-600" />
+      {/* Statistics KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-blue-100 text-blue-600">
+              <CalendarDays className="h-6 w-6" />
             </div>
-          </CardContent>
-        </Card>
+            <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">Aujourd'hui</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Cours aujourd'hui</p>
+          <p className="text-3xl font-bold text-gray-900">{todaySchedule.length}</p>
+        </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Cours présents</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {todaySchedule.filter(s => !s.absence?.is_absent).length}
-                </p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-orange-100 text-orange-600">
+              <AlertCircle className="h-6 w-6" />
             </div>
-          </CardContent>
-        </Card>
+            <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full">Attention</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Absences</p>
+          <p className="text-3xl font-bold text-gray-900">
+            {todaySchedule.filter(s => s.absence?.is_absent).length}
+          </p>
+        </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Absences</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {todaySchedule.filter(s => s.absence?.is_absent).length}
-                </p>
-              </div>
-              <XCircle className="h-8 w-8 text-red-600" />
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-green-100 text-green-600">
+              <CheckCircle className="h-6 w-6" />
             </div>
-          </CardContent>
-        </Card>
+            <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">Bon</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Présences</p>
+          <p className="text-3xl font-bold text-gray-900">
+            {todaySchedule.filter(s => !s.absence?.is_absent).length}
+          </p>
+        </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Groupe</p>
-                <p className="text-lg font-bold text-purple-600">
-                  {profile?.groupe.nom || '-'}
-                </p>
-              </div>
-              <User className="h-8 w-8 text-purple-600" />
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-purple-100 text-purple-600">
+              <Award className="h-6 w-6" />
             </div>
-          </CardContent>
-        </Card>
+            <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">Moyenne</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Taux de présence</p>
+          <p className="text-3xl font-bold text-gray-900">
+            {todaySchedule.length > 0 
+              ? Math.round((todaySchedule.filter(s => !s.absence?.is_absent).length / todaySchedule.length) * 100)
+              : 0}%
+          </p>
+        </div>
       </div>
 
       {/* Current Class */}

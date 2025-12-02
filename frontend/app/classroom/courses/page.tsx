@@ -8,24 +8,35 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PlusCircle, BookOpen, Users, Archive, Grid3x3, List, LogIn } from 'lucide-react';
+import { PlusCircle, BookOpen, Users, Archive, Grid3x3, List, LogIn, Search, Zap, Loader2 } from 'lucide-react';
 
 export default function CoursesPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showArchived, setShowArchived] = useState(false);
   const [showEnrollDialog, setShowEnrollDialog] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [enrollLoading, setEnrollLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!authLoading) {
       loadCourses();
     }
   }, [showArchived, authLoading]);
+
+  // Filter courses based on search query
+  useEffect(() => {
+    const filtered = courses.filter(course =>
+      course.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.code?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredCourses(filtered);
+  }, [courses, searchQuery]);
 
   const loadCourses = async () => {
     try {
@@ -92,41 +103,67 @@ export default function CoursesPage() {
 
   if (loading || authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="text-white/60">Chargement de vos cours...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Mes cours</h1>
-          <p className="text-muted-foreground mt-2">
+    <div className="space-y-6 p-4 sm:p-6 md:p-8">
+      {/* Modern Gradient Header */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 sm:p-8 md:p-10 text-white">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+        </div>
+        <div className="relative z-10">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-2">
+            Mes cours 📚
+          </h1>
+          <p className="text-indigo-100 text-base sm:text-lg">
             {isTeacher
-              ? 'Gérez vos cours et devoirs'
-              : 'Afficher vos cours inscrits'}
+              ? 'Gérez vos cours, devoirs et suivez vos étudiants'
+              : 'Afficher vos cours inscrits et progressez'}
           </p>
         </div>
+      </div>
 
-        <div className="flex items-center gap-4">
+      {/* Search and Controls Bar */}
+      <div className="space-y-4 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
+        {/* Search Input */}
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Input
+            placeholder="Rechercher un cours..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 h-10 rounded-lg border-2 border-gray-200 focus:border-indigo-500 focus:ring-indigo-500"
+          />
+        </div>
+
+        {/* Control Buttons */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* AI Assistant Button */}
           <Button
-            variant="outline"
-            className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:from-purple-100 hover:to-blue-100"
+            size="sm"
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0"
             onClick={() => router.push('/classroom/ai-assistant')}
           >
-            <span className="text-purple-600 mr-2">✨</span>
-            Assistant IA
+            <Zap className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">IA</span>
           </Button>
+
           {/* View Mode Toggle */}
-          <div className="flex gap-2 border rounded-lg p-1">
+          <div className="flex gap-1 border border-gray-200 rounded-lg p-1 bg-white">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('grid')}
+              className="h-8 px-2"
             >
               <Grid3x3 className="h-4 w-4" />
             </Button>
@@ -134,6 +171,7 @@ export default function CoursesPage() {
               variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
+              className="h-8 px-2"
             >
               <List className="h-4 w-4" />
             </Button>
@@ -142,52 +180,69 @@ export default function CoursesPage() {
           {/* Archive Toggle */}
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setShowArchived(!showArchived)}
+            className="border-gray-200"
           >
-            <Archive className="h-4 w-4 mr-2" />
-            {showArchived ? 'Show Active' : 'Show Archived'}
+            <Archive className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">{showArchived ? 'Actifs' : 'Archives'}</span>
           </Button>
 
-          {/* Create Course Button (Teachers Only) */}
+          {/* Create/Join Course Buttons */}
           {isTeacher && (
-            <Button onClick={handleCreateCourse}>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Créer un cours
+            <Button
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleCreateCourse}
+            >
+              <PlusCircle className="h-4 w-4 mr-1.5" />
+              <span className="hidden sm:inline">Créer</span>
             </Button>
           )}
 
-          {/* Join Course Button (Students Only) */}
           {isStudent && (
-            <Button onClick={() => setShowEnrollDialog(true)}>
-              <LogIn className="h-4 w-4 mr-2" />
-              Rejoindre un cours
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => setShowEnrollDialog(true)}
+            >
+              <LogIn className="h-4 w-4 mr-1.5" />
+              <span className="hidden sm:inline">Rejoindre</span>
             </Button>
           )}
         </div>
       </div>
 
       {/* Courses Grid/List */}
-      {courses.length === 0 ? (
-        <Card className="p-12 text-center">
-          <BookOpen className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-xl font-semibold mb-2">Pas encore de cours</h3>
-          <p className="text-muted-foreground mb-4">
-            {isTeacher
-              ? 'Créez votre premier cours pour commencer'
-              : 'S\'inscrire à un cours à l\'aide d\'un code d\'invitation'}
-          </p>
-          <div className="flex gap-4 justify-center">
-            {isTeacher && (
-              <Button onClick={handleCreateCourse}>
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Créer un cours
-              </Button>
-            )}
-            {isStudent && (
-              <Button onClick={() => setShowEnrollDialog(true)} variant="outline">
-                <LogIn className="h-4 w-4 mr-2" />
-                Rejoindre un cours
-              </Button>
+      {filteredCourses.length === 0 ? (
+        <Card className="p-12 text-center border-0 shadow-lg bg-gradient-to-br from-slate-50 to-slate-100">
+          <div className="flex flex-col items-center gap-4">
+            <div className="p-3 rounded-full bg-indigo-100">
+              <BookOpen className="h-8 w-8 text-indigo-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">Pas encore de cours</h3>
+            <p className="text-gray-600 max-w-md">
+              {searchQuery
+                ? "Aucun cours ne correspond à votre recherche"
+                : isTeacher
+                ? 'Créez votre premier cours pour commencer'
+                : 'Inscrivez-vous à un cours à l\'aide d\'un code d\'invitation'}
+            </p>
+            {!searchQuery && (
+              <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                {isTeacher && (
+                  <Button onClick={handleCreateCourse} className="bg-indigo-600 hover:bg-indigo-700">
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Créer un cours
+                  </Button>
+                )}
+                {isStudent && (
+                  <Button onClick={() => setShowEnrollDialog(true)} variant="outline">
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Rejoindre un cours
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </Card>
@@ -195,51 +250,60 @@ export default function CoursesPage() {
         <div
           className={
             viewMode === 'grid'
-              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
               : 'flex flex-col gap-4'
           }
         >
-          {courses.map((course) => (
+          {filteredCourses.map((course) => (
             <Card
               key={course.id}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="group cursor-pointer border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden hover:-translate-y-1"
               onClick={() => handleCourseClick(course.id)}
             >
               <CardHeader
-                className="bg-gradient-to-r from-primary/10 to-primary/5"
+                className="pb-4 text-white relative overflow-hidden"
                 style={{
                   background: `linear-gradient(135deg, ${getRandomColor(course.id)} 0%, ${getRandomColor(course.id)}CC 100%)`,
                 }}
               >
-                <CardTitle className="text-white">{course.nom}</CardTitle>
-                <CardDescription className="text-white/90">
-                  {course.anneeAcademique} • {course.semestre}
-                  {course.code && ` • ${course.code}`}
-                </CardDescription>
+                <div className="absolute inset-0 opacity-10">
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-white rounded-full blur-xl"></div>
+                </div>
+                <div className="relative z-10">
+                  <CardTitle className="text-lg sm:text-xl group-hover:translate-x-1 transition-transform">
+                    {course.nom}
+                  </CardTitle>
+                  <CardDescription className="text-white/80 text-xs sm:text-sm">
+                    {course.anneeAcademique} • {course.semestre}
+                    {course.code && ` • ${course.code}`}
+                  </CardDescription>
+                </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      <span>{course.nbEtudiants || 0}</span>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1.5 text-gray-600">
+                        <Users className="h-4 w-4" />
+                        <span className="font-medium">{course.nbEtudiants || 0} élèves</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-gray-600">
+                        <BookOpen className="h-4 w-4" />
+                        <span className="font-medium">{course.nbDevoirs || 0} travaux</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <BookOpen className="h-4 w-4" />
-                      <span>{course.nbDevoirs || 0}</span>
-                    </div>
+                    {!course.estActif && (
+                      <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                        Archivé
+                      </span>
+                    )}
                   </div>
-                  {!course.estActif && (
-                    <span className="px-2 py-1 rounded-full bg-muted text-xs">
-                      Archivé
-                    </span>
+                  {course.description && (
+                    <p className="text-sm text-gray-600 line-clamp-2 pt-2 border-t border-gray-100">
+                      {course.description}
+                    </p>
                   )}
                 </div>
-                {course.description && (
-                  <p className="mt-3 text-sm line-clamp-2">
-                    {course.description}
-                  </p>
-                )}
               </CardContent>
             </Card>
           ))}

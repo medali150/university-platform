@@ -23,7 +23,8 @@ import {
   Trash2,
   MessageSquare,
   Brain,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react';
 
 interface Message {
