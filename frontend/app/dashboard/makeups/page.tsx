@@ -86,7 +86,10 @@ export default function MakeupsPage() {
     try {
       setLoadingTeacherData(true)
       const token = localStorage.getItem('token')
-      if (!token) return
+      if (!token) {
+        console.error('No token found')
+        return
+      }
 
       // Fetch teacher profile, subjects, and groups
       const [profileRes, subjectsRes, groupsRes] = await Promise.all([
@@ -106,6 +109,10 @@ export default function MakeupsPage() {
         const subjects = await subjectsRes.json()
         const groups = await groupsRes.json()
         
+        console.log('Teacher Profile:', profile)
+        console.log('Teacher Subjects:', subjects)
+        console.log('Teacher Groups:', groups)
+        
         setTeacherInfo(profile.teacher_info)
         setTeacherSubjects(subjects)
         setTeacherGroups(groups)
@@ -115,9 +122,20 @@ export default function MakeupsPage() {
           ...prev,
           id_enseignant: profile.teacher_info.id
         }))
+      } else {
+        console.error('API errors:', {
+          profile: profileRes.status,
+          subjects: subjectsRes.status,
+          groups: groupsRes.status
+        })
       }
     } catch (error) {
       console.error('Error loading teacher data:', error)
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les données de l\'enseignant',
+        variant: 'destructive',
+      })
     } finally {
       setLoadingTeacherData(false)
     }
@@ -629,8 +647,16 @@ export default function MakeupsPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Loading State */}
+            {loadingTeacherData && (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-3 text-gray-600">Chargement des données...</span>
+              </div>
+            )}
+
             {/* Teacher Info */}
-            {teacherInfo && (
+            {!loadingTeacherData && teacherInfo && (
               <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
                 <h3 className="font-semibold text-blue-700 dark:text-blue-300 mb-2">Enseignant</h3>
                 <p className="text-sm text-gray-700 dark:text-gray-300">
@@ -641,94 +667,113 @@ export default function MakeupsPage() {
             )}
 
             {/* Original Session Info */}
-            <div className="space-y-3">
-              <h3 className="font-semibold text-lg">Séance originale (annulée)</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="id_matiere">Matière *</Label>
-                  <Select 
-                    value={createFormData.id_matiere || ''} 
-                    onValueChange={(value) => setCreateFormData({ ...createFormData, id_matiere: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez une matière" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teacherSubjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.nom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            {!loadingTeacherData && (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg">Séance originale (annulée)</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="id_matiere">Matière *</Label>
+                    <Select 
+                      value={createFormData.id_matiere || ''} 
+                      onValueChange={(value) => setCreateFormData({ ...createFormData, id_matiere: value })}
+                      disabled={teacherSubjects.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={teacherSubjects.length === 0 ? "Aucune matière disponible" : "Sélectionnez une matière"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teacherSubjects.length === 0 ? (
+                          <div className="p-2 text-sm text-gray-500">Aucune matière trouvée</div>
+                        ) : (
+                          teacherSubjects.map((subject) => (
+                            <SelectItem key={subject.id} value={subject.id}>
+                              {subject.nom}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {teacherSubjects.length > 0 && (
+                      <p className="text-xs text-gray-500">{teacherSubjects.length} matière(s) disponible(s)</p>
+                    )}
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="id_groupe">Groupe *</Label>
-                  <Select 
-                    value={createFormData.id_groupe || ''} 
-                    onValueChange={(value) => setCreateFormData({ ...createFormData, id_groupe: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez un groupe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teacherGroups.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.nom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="id_groupe">Groupe *</Label>
+                    <Select 
+                      value={createFormData.id_groupe || ''} 
+                      onValueChange={(value) => setCreateFormData({ ...createFormData, id_groupe: value })}
+                      disabled={teacherGroups.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={teacherGroups.length === 0 ? "Aucun groupe disponible" : "Sélectionnez un groupe"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teacherGroups.length === 0 ? (
+                          <div className="p-2 text-sm text-gray-500">Aucun groupe trouvé</div>
+                        ) : (
+                          teacherGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.nom}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {teacherGroups.length > 0 && (
+                      <p className="text-xs text-gray-500">{teacherGroups.length} groupe(s) disponible(s)</p>
+                    )}
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="date_originale">Date originale *</Label>
-                  <Input
-                    id="date_originale"
-                    type="date"
-                    value={createFormData.date_originale || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, date_originale: e.target.value })}
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="date_originale">Date originale *</Label>
+                    <Input
+                      id="date_originale"
+                      type="date"
+                      value={createFormData.date_originale || ''}
+                      onChange={(e) => setCreateFormData({ ...createFormData, date_originale: e.target.value })}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="id_salle">ID Salle (optionnel)</Label>
-                  <Input
-                    id="id_salle"
-                    placeholder="Ex: sal_123456"
-                    value={createFormData.id_salle || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, id_salle: e.target.value })}
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="id_salle">ID Salle (optionnel)</Label>
+                    <Input
+                      id="id_salle"
+                      placeholder="Ex: sal_123456"
+                      value={createFormData.id_salle || ''}
+                      onChange={(e) => setCreateFormData({ ...createFormData, id_salle: e.target.value })}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="heure_debut_origin">Heure début *</Label>
-                  <Input
-                    id="heure_debut_origin"
-                    type="time"
-                    value={createFormData.heure_debut_origin || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, heure_debut_origin: e.target.value })}
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="heure_debut_origin">Heure début *</Label>
+                    <Input
+                      id="heure_debut_origin"
+                      type="time"
+                      value={createFormData.heure_debut_origin || ''}
+                      onChange={(e) => setCreateFormData({ ...createFormData, heure_debut_origin: e.target.value })}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="heure_fin_origin">Heure fin *</Label>
-                  <Input
-                    id="heure_fin_origin"
-                    type="time"
-                    value={createFormData.heure_fin_origin || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, heure_fin_origin: e.target.value })}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="heure_fin_origin">Heure fin *</Label>
+                    <Input
+                      id="heure_fin_origin"
+                      type="time"
+                      value={createFormData.heure_fin_origin || ''}
+                      onChange={(e) => setCreateFormData({ ...createFormData, heure_fin_origin: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="border-t pt-4 space-y-3">
-              <h3 className="font-semibold text-lg">Séance proposée</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
+            {!loadingTeacherData && (
+              <div className="border-t pt-4 space-y-3">
+                <h3 className="font-semibold text-lg">Séance proposée</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="date_proposee">Date proposée *</Label>
                   <Input
@@ -759,18 +804,21 @@ export default function MakeupsPage() {
                   />
                 </div>
               </div>
-            </div>
+              </div>
+            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="motif">Motif de l'annulation *</Label>
-              <Textarea
-                id="motif"
-                placeholder="Expliquez la raison de l'annulation de la séance originale..."
-                value={createFormData.motif || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, motif: e.target.value })}
-                rows={4}
-              />
-            </div>
+            {!loadingTeacherData && (
+              <div className="space-y-2">
+                <Label htmlFor="motif">Motif de l'annulation *</Label>
+                <Textarea
+                  id="motif"
+                  placeholder="Expliquez la raison de l'annulation de la séance originale..."
+                  value={createFormData.motif || ''}
+                  onChange={(e) => setCreateFormData({ ...createFormData, motif: e.target.value })}
+                  rows={4}
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
