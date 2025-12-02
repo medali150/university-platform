@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Clock, User, MapPin, BookOpen, Calendar } from 'lucide-react'
+import { Clock, User, MapPin, BookOpen, Calendar, Loader2, ChevronLeft, ChevronRight, Zap } from 'lucide-react'
 
 interface TimeSlot {
   id: string
@@ -177,34 +177,47 @@ export default function TimetablePage() {
     
     if (!entry) {
       return (
-        <td key={`${dayNumber}-${timeSlot.id}`} className="border p-2 h-24 bg-gray-50">
-          <div className="text-center text-gray-400 text-sm">
-            Libre
+        <td key={`${dayNumber}-${timeSlot.id}`} className="border border-gray-200 p-2 h-28 bg-gray-50 hover:bg-gray-100 transition-colors">
+          <div className="text-center text-gray-400 text-sm h-full flex items-center justify-center">
+            <span className="opacity-50">Libre</span>
           </div>
         </td>
       )
     }
 
+    // Generate consistent color based on subject
+    const colorMap: { [key: string]: string } = {
+      'ALGO': 'from-blue-500 to-blue-600',
+      'MATH': 'from-green-500 to-green-600',
+      'ARCH': 'from-purple-500 to-purple-600',
+      'ENG': 'from-orange-500 to-orange-600'
+    }
+    
+    const subjectCode = entry.subject.code?.substring(0, 4) || 'ALGO'
+    const gradientClass = colorMap[subjectCode] || 'from-indigo-500 to-indigo-600'
+
     return (
-      <td key={`${dayNumber}-${timeSlot.id}`} className="border p-2 h-24 bg-white hover:bg-blue-50 transition-colors">
-        <div className="h-full flex flex-col justify-between">
-          <div>
-            <div className="font-semibold text-sm text-blue-900 mb-1 leading-tight">
-              {entry.subject.nom}
+      <td key={`${dayNumber}-${timeSlot.id}`} className="border border-gray-200 p-2 h-28">
+        <div className={`h-full bg-gradient-to-br ${gradientClass} rounded-lg p-3 text-white shadow-md hover:shadow-lg transition-all cursor-pointer group hover:scale-105 transform`}>
+          <div className="flex flex-col h-full justify-between">
+            <div>
+              <div className="font-bold text-sm leading-tight line-clamp-2 mb-1">
+                {entry.subject.nom}
+              </div>
+              <div className="text-xs opacity-90 flex items-center gap-0.5 mb-1">
+                <User size={12} />
+                {entry.teacher.prenom} {entry.teacher.nom}
+              </div>
             </div>
-            <div className="text-xs text-gray-600 flex items-center gap-1 mb-1">
-              <User size={10} />
-              {entry.teacher.prenom} {entry.teacher.nom}
+            <div className="flex justify-between items-end text-xs opacity-90">
+              <div className="flex items-center gap-0.5">
+                <MapPin size={12} />
+                {entry.room.nom}
+              </div>
+              <Badge variant="secondary" className="text-xs px-1.5 py-0.5 bg-white/20 text-white border-0">
+                {entry.group.nom}
+              </Badge>
             </div>
-          </div>
-          <div className="flex justify-between items-end">
-            <div className="text-xs text-gray-500 flex items-center gap-1">
-              <MapPin size={10} />
-              {entry.room.nom}
-            </div>
-            <Badge variant="outline" className="text-xs px-1 py-0">
-              {entry.group.nom}
-            </Badge>
           </div>
         </div>
       </td>
@@ -213,8 +226,11 @@ export default function TimetablePage() {
 
   if (loading || loadingTimetable) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="text-white/60">Chargement de l'emploi du temps...</p>
+        </div>
       </div>
     )
   }
@@ -222,74 +238,97 @@ export default function TimetablePage() {
   if (!user) return null
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Emploi du Temps</h1>
-          <p className="text-gray-600">
-            {viewMode === 'student' ? 'Votre emploi du temps hebdomadaire' : 'Planning des cours'}
-          </p>
+    <div className="space-y-6 p-4 sm:p-6 md:p-8">
+      {/* Modern Gradient Header */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 sm:p-8 md:p-10 text-white">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
         </div>
-        <div className="flex items-center gap-4">
-          <Badge variant="outline" className="flex items-center gap-2">
-            <Calendar size={16} />
-            Semaine du {selectedWeek}
-          </Badge>
-          <Button variant="outline" size="sm">
-            <Clock size={16} className="mr-2" />
-            Aujourd'hui
-          </Button>
+        <div className="relative z-10">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-2">
+            Emploi du Temps 📅
+          </h1>
+          <p className="text-indigo-100 text-base sm:text-lg">
+            {viewMode === 'student' ? 'Votre emploi du temps hebdomadaire' : 'Planning des cours complet'}
+          </p>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Cours</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{timetable.length}</div>
-            <p className="text-xs text-gray-600">Cette semaine</p>
-          </CardContent>
-        </Card>
+      {/* Week Navigation Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-lg shadow-md">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            className="hover:bg-indigo-50 border-indigo-200"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="text-center min-w-48">
+            <p className="text-sm text-gray-600">Semaine du</p>
+            <p className="text-lg font-bold text-gray-900">{selectedWeek}</p>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="hover:bg-indigo-50 border-indigo-200"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Calendar className="h-4 w-4 mr-2" />
+          Aujourd'hui
+        </Button>
+      </div>
+
+      {/* Statistics KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-blue-100 text-blue-600">
+              <BookOpen className="h-6 w-6" />
+            </div>
+            <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Total</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Cours cette semaine</p>
+          <p className="text-3xl font-bold text-gray-900">{timetable.length}</p>
+        </div>
         
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Heures/Semaine</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {timetable.length * 1.5}h
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-green-100 text-green-600">
+              <Clock className="h-6 w-6" />
             </div>
-            <p className="text-xs text-gray-600">Temps total</p>
-          </CardContent>
-        </Card>
+            <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">Temps</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Heures / semaine</p>
+          <p className="text-3xl font-bold text-gray-900">{(timetable.length * 1.5).toFixed(1)}h</p>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Matières</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
-              {new Set(timetable.map(t => t.subject.nom)).size}
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-purple-100 text-purple-600">
+              <Zap className="h-6 w-6" />
             </div>
-            <p className="text-xs text-gray-600">Différentes</p>
-          </CardContent>
-        </Card>
+            <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">Cours</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Matières différentes</p>
+          <p className="text-3xl font-bold text-gray-900">{new Set(timetable.map(t => t.subject.nom)).size}</p>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Enseignants</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {new Set(timetable.map(t => `${t.teacher.prenom} ${t.teacher.nom}`)).size}
+        <div className="group bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border-0">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 rounded-lg bg-orange-100 text-orange-600">
+              <User className="h-6 w-6" />
             </div>
-            <p className="text-xs text-gray-600">Différents</p>
-          </CardContent>
-        </Card>
+            <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full">Profs</span>
+          </div>
+          <p className="text-gray-600 text-sm font-medium mb-1">Enseignants différents</p>
+          <p className="text-3xl font-bold text-gray-900">{new Set(timetable.map(t => `${t.teacher.prenom} ${t.teacher.nom}`)).size}</p>
+        </div>
       </div>
 
       {/* Timetable */}
