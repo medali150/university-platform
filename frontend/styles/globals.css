@@ -53,7 +53,132 @@
   * {
     @apply border-border;
   }
+  
+  html {
+    @apply scroll-smooth;
+  }
+  
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* Responsive Typography */
+  h1 {
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight;
+  }
+  
+  h2 {
+    @apply text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight;
+  }
+  
+  h3 {
+    @apply text-lg sm:text-xl md:text-2xl font-semibold;
+  }
+  
+  h4 {
+    @apply text-base sm:text-lg md:text-xl font-semibold;
+  }
+  
+  /* Responsive Padding */
+  @apply p-4 sm:p-5 md:p-6 lg:p-8;
+}
+
+@layer components {
+  /* Responsive Container */
+  .responsive-container {
+    @apply container mx-auto px-4 sm:px-5 md:px-6 lg:px-8;
+  }
+  
+  /* Responsive Grid */
+  .responsive-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 md:gap-6;
+  }
+  
+  .responsive-grid-2 {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 md:gap-6;
+  }
+  
+  /* Responsive Flex */
+  .responsive-flex {
+    @apply flex flex-col sm:flex-row gap-4 sm:gap-5 md:gap-6;
+  }
+  
+  /* Modern Card */
+  .modern-card {
+    @apply rounded-lg border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all duration-300 p-4 sm:p-5 md:p-6;
+  }
+  
+  .modern-card-dark {
+    @apply rounded-lg border border-slate-700 bg-slate-900 shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 md:p-6;
+  }
+  
+  /* Modern Button */
+  .btn-modern {
+    @apply px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 md:py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 active:scale-95;
+  }
+  
+  /* Modern Gradient */
+  .gradient-primary {
+    @apply bg-gradient-to-r from-blue-600 to-purple-600;
+  }
+  
+  .gradient-secondary {
+    @apply bg-gradient-to-r from-slate-600 to-slate-800;
+  }
+  
+  /* Responsive Padding Utilities */
+  .px-responsive {
+    @apply px-4 sm:px-5 md:px-6 lg:px-8;
+  }
+  
+  .py-responsive {
+    @apply py-4 sm:py-5 md:py-6 lg:py-8;
+  }
+  
+  .p-responsive {
+    @apply p-4 sm:p-5 md:p-6 lg:p-8;
+  }
+  
+  /* Responsive Gap */
+  .gap-responsive {
+    @apply gap-4 sm:gap-5 md:gap-6 lg:gap-8;
+  }
+  
+  /* Smooth Transitions */
+  .transition-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  /* Focus Styles */
+  .focus-modern {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:rounded-lg;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  @apply w-2 h-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100 dark:bg-slate-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-600 rounded-full hover:bg-slate-400 dark:hover:bg-slate-500;
+}
+
+/* Mobile Optimization */
+@media (max-width: 640px) {
+  body {
+    @apply text-sm;
+  }
+  
+  h1 {
+    @apply text-2xl;
+  }
+  
+  h2 {
+    @apply text-xl;
   }
 }
