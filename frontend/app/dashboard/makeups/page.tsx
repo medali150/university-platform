@@ -798,14 +798,14 @@ export default function MakeupsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="id_salle">Salle (optionnel)</Label>
                     <Select 
-                      value={createFormData.id_salle || ''} 
-                      onValueChange={(value) => setCreateFormData({ ...createFormData, id_salle: value })}
+                      value={createFormData.id_salle || 'none'} 
+                      onValueChange={(value) => setCreateFormData({ ...createFormData, id_salle: value === 'none' ? undefined : value })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez une salle" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Aucune salle</SelectItem>
+                        <SelectItem value="none">Aucune salle</SelectItem>
                         {teacherRooms.map((room) => (
                           <SelectItem key={room.id} value={room.id}>
                             {room.code} (Capacité: {room.capacite})
