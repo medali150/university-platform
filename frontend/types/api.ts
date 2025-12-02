@@ -70,9 +70,11 @@ export interface Group {
 
 export interface Room {
   id: string
-  name: string
+  code: string
+  name?: string
   capacity: number
   type: string
+  building?: string
 }
 
 export interface Subject {

@@ -416,6 +416,7 @@ export default function AdminDashboard() {
             {[
               { href: '/global-management', icon: '🌐', title: 'Global Management', desc: 'Manage departments, specialties, levels, groups, rooms & subjects', gradient: 'from-pink-500 to-rose-600' },
               { href: '/timetable-admin', icon: '📅', title: 'Timetable Viewer', desc: 'View all timetables across departments', gradient: 'from-cyan-500 to-blue-600' },
+              { href: '/department-timetable', icon: '🗓️', title: 'Department Timetables', desc: 'View schedules by department with week view', gradient: 'from-blue-500 to-cyan-600' },
               { href: '/students', icon: '👨‍🎓', title: 'Student Management', desc: 'Create, edit, and manage student accounts', gradient: 'from-green-500 to-emerald-600' },
               { href: '/teachers', icon: '👨‍🏫', title: 'Teacher Management', desc: 'Create, edit, and manage teacher accounts', gradient: 'from-purple-500 to-violet-600' },
               { href: '/department-heads', icon: '👨‍💼', title: 'Department Heads', desc: 'Manage department head assignments', gradient: 'from-orange-500 to-amber-600' },

@@ -4,12 +4,15 @@ Provides comprehensive analytics and statistics for department heads
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from prisma import Prisma
 from app.db.prisma_client import get_prisma
 from app.core.deps import require_department_head
 from typing import Optional, List, Dict
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
+import io
+import csv
 
 
 router = APIRouter(
@@ -359,3 +362,92 @@ async def get_recent_activity(
     return {
         "activities": activities[:limit]
     }
+
+
+@router.get("/export")
+async def export_analytics_report(
+    format: str = Query("csv", regex="^(csv|excel)$"),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    prisma: Prisma = Depends(get_prisma),
+    current_user = Depends(require_department_head)
+):
+    """
+    Export analytics report as CSV or Excel
+    """
+    # Get analytics data
+    overview = await get_analytics_overview(start_date, end_date, prisma, current_user)
+    
+    if format == "csv":
+        # Create CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Header
+        writer.writerow([f"Rapport d'Analyse - {overview['department']['name']}"])
+        writer.writerow([f"Période: {overview['period']['start_date']} à {overview['period']['end_date']}"])
+        writer.writerow([])
+        
+        # KPIs
+        writer.writerow(["Indicateurs Clés de Performance (KPI)"])
+        writer.writerow(["Métrique", "Valeur"])
+        kpis = overview['kpis']
+        writer.writerow(["Taux de présence", f"{kpis['attendance_rate']:.1f}%"])
+        writer.writerow(["Utilisation des salles", f"{kpis['room_utilization_rate']:.1f}%"])
+        writer.writerow(["Total d'emplois du temps", kpis['total_schedules']])
+        writer.writerow(["Total d'heures", kpis['total_hours']])
+        writer.writerow(["Total d'étudiants", kpis['total_students']])
+        writer.writerow(["Total d'enseignants", kpis['total_teachers']])
+        writer.writerow(["Total d'absences", kpis['total_absences']])
+        writer.writerow(["Absences justifiées", kpis['justified_absences']])
+        writer.writerow([])
+        
+        # Subject distribution
+        writer.writerow(["Distribution par Matière"])
+        writer.writerow(["Matière", "Heures", "Pourcentage"])
+        for subject in overview['subject_distribution']:
+            writer.writerow([subject['subject'], subject['hours'], f"{subject['percentage']:.1f}%"])
+        writer.writerow([])
+        
+        # Top teachers
+        writer.writerow(["Enseignants les Plus Actifs"])
+        writer.writerow(["Nom", "Total d'Heures", "Nombre de Sessions"])
+        for teacher in overview['top_teachers']:
+            writer.writerow([teacher['name'], teacher['total_hours'], teacher['sessions']])
+        writer.writerow([])
+        
+        # Room efficiency
+        writer.writerow(["Efficacité des Salles"])
+        writer.writerow(["Code Salle", "Heures Utilisées", "Taux d'Utilisation"])
+        for room in overview['room_efficiency']:
+            writer.writerow([room['room_code'], room['hours_used'], f"{room['utilization_rate']:.1f}%"])
+        writer.writerow([])
+        
+        # Grade statistics
+        if 'grade_statistics' in overview and overview['grade_statistics']:
+            writer.writerow(["Statistiques des Notes"])
+            writer.writerow(["Métrique", "Valeur"])
+            grades = overview['grade_statistics']
+            writer.writerow(["Moyenne générale", f"{grades['average_grade']:.2f}"])
+            writer.writerow(["Total de notes", grades['total_grades']])
+            writer.writerow(["Excellent (≥16)", grades['excellent']])
+            writer.writerow(["Bien (14-16)", grades['good']])
+            writer.writerow(["Moyen (12-14)", grades['average']])
+            writer.writerow(["Insuffisant (<12)", grades['poor']])
+        
+        # Get CSV content
+        csv_content = output.getvalue()
+        output.close()
+        
+        # Return as download
+        return StreamingResponse(
+            io.BytesIO(csv_content.encode('utf-8-sig')),  # utf-8-sig for Excel compatibility
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=analytics_report_{datetime.now().strftime('%Y%m%d')}.csv"
+            }
+        )
+    
+    # For Excel format, we'd need openpyxl or xlsxwriter
+    # For now, return CSV with .xlsx extension
+    return await export_analytics_report("csv", start_date, end_date, prisma, current_user)

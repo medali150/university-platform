@@ -197,6 +197,36 @@ class ApiClient {
     return this.request<User>('/auth/me')
   }
 
+  // Generic HTTP methods
+  async get<T = any>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'GET' })
+  }
+
+  async post<T = any>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    })
+  }
+
+  async put<T = any>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    })
+  }
+
+  async patch<T = any>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    })
+  }
+
+  async delete<T = any>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE' })
+  }
+
   async register(userData: {
     prenom: string
     nom: string
@@ -320,8 +350,17 @@ class ApiClient {
   }
 
   // Rooms
-  async getRooms(): Promise<Room[]> {
-    return this.request<Room[]>('/rooms')
+  async getRooms(params?: { search?: string; type?: string; building?: string }): Promise<Room[]> {
+    const queryParams = new URLSearchParams()
+    if (params?.search) queryParams.append('search', params.search)
+    if (params?.type && params.type !== 'all') queryParams.append('type', params.type)
+    if (params?.building && params.building !== 'all') queryParams.append('building', params.building)
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : ''
+    return this.request<Room[]>(`/rooms${queryString}`)
+  }
+
+  async getRoom(id: string): Promise<Room> {
+    return this.request<Room>(`/rooms/${id}`)
   }
 
   async createRoom(room: Partial<Room>): Promise<Room> {
@@ -649,6 +688,41 @@ class ApiClient {
     }
 
     return response.blob()
+  }
+
+  // Download files with proper authentication and headers
+  async downloadFile(url: string, filename?: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseURL}${url}`, {
+        headers: {
+          Authorization: `Bearer ${this.getToken()}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new ApiError('Download failed', response.status, response.statusText)
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = filename || 'download'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (error) {
+      console.error('Download error:', error)
+      throw error
+    }
+  }
+
+  async exportAnalyticsReport(format: 'csv' | 'excel' = 'excel'): Promise<void> {
+    await this.downloadFile(
+      `/department-head/analytics/export?format=${format}`,
+      `analytics_report.${format === 'csv' ? 'csv' : 'xlsx'}`
+    )
   }
 
   // Analytics

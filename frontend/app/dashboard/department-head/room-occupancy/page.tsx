@@ -42,21 +42,33 @@ export default function RoomOccupancyPage() {
     setLoading(true)
     try {
       const [occupancyResponse, statsResponse] = await Promise.all([
-        api.getRoomOccupancy({ week_offset: weekOffset }),
+        api.getRoomOccupancy({ week_offset: weekOffset, room_type: roomTypeFilter !== 'all' ? roomTypeFilter : undefined }),
         api.getRoomOccupancyStatistics(weekOffset)
       ])
 
-      if (occupancyResponse.success) {
+      console.log('📊 Room occupancy response:', occupancyResponse)
+      console.log('📊 Statistics response:', statsResponse)
+
+      if (occupancyResponse?.success && occupancyResponse?.data) {
         setRooms(occupancyResponse.data)
         setWeekInfo(occupancyResponse.week_info)
+      } else if (Array.isArray(occupancyResponse)) {
+        setRooms(occupancyResponse)
+      } else {
+        console.warn('Unexpected occupancy response format:', occupancyResponse)
+        setRooms([])
       }
 
-      if (statsResponse.success) {
+      if (statsResponse?.success && statsResponse?.statistics) {
         setStatistics(statsResponse.statistics)
+      } else if (statsResponse && !statsResponse.success) {
+        console.warn('Statistics request failed:', statsResponse)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching room data:', error)
       toast.error(error.message || 'Impossible de charger les données des salles')
+      setRooms([])
+      setStatistics(null)
     } finally {
       setLoading(false)
     }
@@ -79,7 +91,14 @@ export default function RoomOccupancyPage() {
   }
 
   const formatWeekRange = () => {
-    if (!weekInfo) return ''
+    if (!weekInfo || !weekInfo.start_date || !weekInfo.end_date) {
+      const today = new Date()
+      const weekStart = new Date(today)
+      weekStart.setDate(today.getDate() - today.getDay() + 1)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 6)
+      return `${weekStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} - ${weekEnd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    }
     const start = new Date(weekInfo.start_date)
     const end = new Date(weekInfo.end_date)
     return `${start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -291,7 +310,18 @@ export default function RoomOccupancyPage() {
                             {slot.label}
                           </td>
                           {DAYS.map((day) => {
-                            const timeSlot = room.occupancies[day]?.[slot.id]
+                            const timeSlot = room.occupancies?.[day]?.[slot.id]
+                            if (!timeSlot) {
+                              return (
+                                <td key={`${day}-${slot.id}`} className="border p-1">
+                                  <div className="p-2 rounded border bg-green-100 hover:bg-green-200 border-green-300 transition-colors min-h-[60px]">
+                                    <div className="text-center text-xs text-muted-foreground">
+                                      Disponible
+                                    </div>
+                                  </div>
+                                </td>
+                              )
+                            }
                             return (
                               <td key={`${day}-${slot.id}`} className="border p-1">
                                 <div

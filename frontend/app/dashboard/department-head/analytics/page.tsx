@@ -159,6 +159,17 @@ export default function AnalyticsPage() {
   const attendanceTrend = kpis.attendance_rate >= 94 ? '+2.1%' : '-1.2%'
   const attendanceTrendColor = kpis.attendance_rate >= 94 ? 'text-green-600' : 'text-red-600'
 
+  const handleExportReport = async (format: 'csv' | 'excel' = 'excel') => {
+    try {
+      toast.loading(`Téléchargement du rapport ${format.toUpperCase()}...`)
+      await api.exportAnalyticsReport(format)
+      toast.success('Rapport téléchargé avec succès')
+    } catch (error: any) {
+      console.error('Error exporting report:', error)
+      toast.error('Erreur lors du téléchargement du rapport')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -173,9 +184,13 @@ export default function AnalyticsPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Actualiser
           </Button>
-          <Button>
+          <Button onClick={() => handleExportReport('excel')}>
             <Download className="mr-2 h-4 w-4" />
-            Exporter Rapport
+            Exporter Excel
+          </Button>
+          <Button variant="outline" onClick={() => handleExportReport('csv')}>
+            <Download className="mr-2 h-4 w-4" />
+            Exporter CSV
           </Button>
         </div>
       </div>

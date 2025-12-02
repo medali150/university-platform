@@ -260,10 +260,22 @@ export default function DepartmentHeadDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Link href="/dashboard/department-head/department-schedule">
+                <Button variant="outline" className="w-full justify-start">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Emplois du Temps du Département
+                </Button>
+              </Link>
+              <Link href="/dashboard/department-head/all-timetables">
+                <Button variant="outline" className="w-full justify-start">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Tous les Emplois du Temps
+                </Button>
+              </Link>
               <Link href="/dashboard/department-head/timetable">
                 <Button variant="outline" className="w-full justify-start">
                   <Clock className="mr-2 h-4 w-4" />
-                  Consulter les Emplois du Temps
+                  Consulter Mon Emploi du Temps
                 </Button>
               </Link>
               <Link href="/dashboard/department-head/schedule">

@@ -51,10 +51,12 @@ const teacherNavItems = [
 const departmentHeadNavItems = [
   { href: '/dashboard/department-head', label: 'Dashboard', icon: Home },
   { href: '/classroom/courses', label: 'Smart Classroom', icon: GraduationCap },
-  { href: '/dashboard/department-head/timetable', label: 'Emploi du Temps', icon: Calendar },
+  { href: '/dashboard/department-head/department-schedule', label: 'Emplois du Temps Département', icon: Calendar },
+  { href: '/dashboard/department-head/timetable', label: 'Mon Emploi du Temps', icon: Calendar },
   { href: '/dashboard/department-head/classes', label: 'Classes', icon: Users },
   { href: '/dashboard/department-head/analytics', label: 'Statistiques', icon: BarChart3 },
-  { href: '/dashboard/department-head/room-occupancy', label: 'Salles', icon: Building },
+  { href: '/dashboard/department-head/rooms', label: 'Gestion des Salles', icon: Building },
+  { href: '/dashboard/department-head/room-occupancy', label: 'Occupation des Salles', icon: Building },
   { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
   { href: '/dashboard/absences', label: 'Absences', icon: UserX },
 ]
