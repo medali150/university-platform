@@ -28,6 +28,7 @@ from app.routers import classroom_materials  # Course materials & file uploads
 from app.routers import classroom_ai  # AI assistant, plagiarism, feedback, summarization
 from app.routers import admin_global_crud  # Admin global CRUD operations
 from app.routers import admin_timetable_supervision  # Admin timetable supervision with conflict detection
+from app.routers import makeup_sessions  # Makeup sessions (rattrapage) management
 
 # Create FastAPI app
 app = FastAPI(
@@ -95,6 +96,7 @@ app.include_router(classroom_materials.router)  # NEW: Course materials
 app.include_router(classroom_ai.router)  # NEW: AI features
 app.include_router(admin_global_crud.router)  # NEW: Admin global CRUD operations
 app.include_router(admin_timetable_supervision.router)  # NEW: Admin timetable supervision
+app.include_router(makeup_sessions.router)  # NEW: Makeup sessions management
 
 
 @app.get("/")
