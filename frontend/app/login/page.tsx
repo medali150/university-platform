@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Mail, Lock, GraduationCap } from 'lucide-react'
+import { Loader2, Mail, Lock, GraduationCap, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -19,6 +19,7 @@ export default function LoginPage() {
     password: '',
   })
   const [error, setError] = useState<string>('')
+  const [showPassword, setShowPassword] = useState(false)
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -81,117 +82,158 @@ export default function LoginPage() {
   // Show loading state while checking auth
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <p className="text-white/60 text-sm">Chargement...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Logo and title */}
-        <div className="text-center">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      </div>
+
+      <div className="max-w-md w-full space-y-8 relative z-10">
+        {/* Header Section */}
+        <div className="text-center space-y-3">
           <div className="flex justify-center">
-            <div className="bg-blue-600 p-3 rounded-full">
-              <GraduationCap className="h-8 w-8 text-white" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-lg opacity-75"></div>
+              <div className="relative bg-gradient-to-br from-blue-500 to-purple-600 p-4 rounded-2xl transform hover:scale-110 transition-transform duration-300">
+                <GraduationCap className="h-8 w-8 text-white" />
+              </div>
             </div>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">
+          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-blue-300 to-purple-400">
             Plateforme Universitaire
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Connectez-vous à votre compte
+          </h1>
+          <p className="text-slate-400 text-base font-medium">
+            Accédez à votre espace personnel
           </p>
         </div>
 
-        {/* Login form */}
-        <Card className="shadow-xl border-0">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Connexion</CardTitle>
-            <CardDescription className="text-center">
-              Entrez vos identifiants pour accéder à la plateforme
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="votre.email@university.com"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="pl-10"
-                    disabled={loading}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="pl-10"
-                    disabled={loading}
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button 
-                type="submit" 
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connexion en cours...
-                  </>
-                ) : (
-                  'Se connecter'
+        {/* Login Card */}
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl blur-xl"></div>
+          <Card className="relative shadow-2xl border border-white/10 bg-slate-800/50 backdrop-blur-xl rounded-2xl overflow-hidden">
+            <CardHeader className="space-y-2 pb-6">
+              <CardTitle className="text-2xl font-bold text-center text-white">Connexion</CardTitle>
+              <CardDescription className="text-center text-slate-400">
+                Entrez vos identifiants pour continuer
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Error Alert */}
+                {error && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-sm font-medium animate-in fade-in">
+                    ⚠️ {error}
+                  </div>
                 )}
-              </Button>
-            </form>
 
-            <div className="mt-6 text-center">
-              <Link 
-                href="/forgot-password" 
-                className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors"
-              >
-                Mot de passe oublié?
-              </Link>
-            </div>
+                {/* Email Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-white font-semibold text-sm">
+                    Adresse Email
+                  </Label>
+                  <div className="relative group">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="votre.email@university.com"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="pl-12 h-11 bg-slate-700/50 border border-slate-600/50 text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:bg-slate-700/80 transition-all rounded-lg"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                </div>
 
-            <div className="mt-4 text-center">
-              <p className="text-xs text-gray-500">
-                Les comptes sont créés par l'administration.<br/>
-                Contactez votre établissement si vous n'avez pas encore de compte.
-              </p>
-            </div>
+                {/* Password Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-white font-semibold text-sm">
+                    Mot de passe
+                  </Label>
+                  <div className="relative group">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      className="pl-12 pr-12 h-11 bg-slate-700/50 border border-slate-600/50 text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:bg-slate-700/80 transition-all rounded-lg"
+                      disabled={loading}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-400 transition-colors"
+                      disabled={loading}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
 
-           
-          </CardContent>
-        </Card>
+                {/* Submit Button */}
+                <Button 
+                  type="submit" 
+                  className="w-full h-11 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-lg transition-all duration-300 mt-6 shadow-lg hover:shadow-xl"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Connexion en cours...
+                    </>
+                  ) : (
+                    'Se connecter'
+                  )}
+                </Button>
+              </form>
+
+              {/* Footer Links */}
+              <div className="mt-8 space-y-4 border-t border-slate-700/50 pt-6">
+                <div className="text-center">
+                  <Link 
+                    href="/forgot-password" 
+                    className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors hover:underline"
+                  >
+                    Mot de passe oublié?
+                  </Link>
+                </div>
+
+                <div className="text-center text-xs text-slate-500 leading-relaxed">
+                  <p>
+                    Vous n'avez pas de compte?<br/>
+                    <span className="text-slate-400">Les comptes sont créés par l'administration.</span>
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Bottom Info */}
+        <p className="text-center text-xs text-slate-500">
+          Plateforme sécurisée • Chiffrement SSL • Données protégées
+        </p>
       </div>
     </div>
   )
