@@ -110,11 +110,24 @@ export default function TeacherGradesPage() {
   const fetchSubjects = async () => {
     try {
       setLoading(true)
+      console.log('🔍 Fetching teacher subjects...')
       const data = await api.getTeacherSubjects()
-      setSubjects(data.subjects)
+      console.log('✅ Subjects loaded:', data)
+      if (data.subjects && data.subjects.length > 0) {
+        setSubjects(data.subjects)
+        toast.success(`${data.subjects.length} matière(s) chargée(s)`)
+      } else {
+        setSubjects([])
+        toast.error('Aucune matière assignée à cet enseignant', {
+          description: 'Veuillez contacter l\'administrateur pour vous assigner des matières.'
+        })
+      }
     } catch (error: any) {
-      toast.error('Erreur lors du chargement des matières')
-      console.error(error)
+      console.error('❌ Error loading subjects:', error)
+      toast.error('Erreur lors du chargement des matières', {
+        description: error.message || 'Impossible de charger les matières'
+      })
+      setSubjects([])
     } finally {
       setLoading(false)
     }
@@ -125,11 +138,24 @@ export default function TeacherGradesPage() {
     
     try {
       setLoading(true)
+      console.log('🔍 Fetching groups for subject:', selectedSubject)
       const data = await api.getSubjectGroups(selectedSubject)
-      setGroups(data.groups)
+      console.log('✅ Groups loaded:', data)
+      if (data.groups && data.groups.length > 0) {
+        setGroups(data.groups)
+        toast.success(`${data.groups.length} groupe(s) trouvé(s)`)
+      } else {
+        setGroups([])
+        toast.error('Aucun groupe trouvé pour cette matière', {
+          description: 'Cette matière n\'a pas encore de groupes assignés.'
+        })
+      }
     } catch (error: any) {
-      toast.error('Erreur lors du chargement des groupes')
-      console.error(error)
+      console.error('❌ Error loading groups:', error)
+      toast.error('Erreur lors du chargement des groupes', {
+        description: error.message
+      })
+      setGroups([])
     } finally {
       setLoading(false)
     }
@@ -140,6 +166,7 @@ export default function TeacherGradesPage() {
     
     try {
       setLoading(true)
+      console.log('🔍 Fetching students for group:', selectedGroup)
       const data = await api.getGroupStudentsForGrading(
         selectedSubject,
         selectedGroup,
@@ -148,10 +175,19 @@ export default function TeacherGradesPage() {
           annee_scolaire: academicYear
         }
       )
-      setStudents(data.students)
+      console.log('✅ Students loaded:', data)
+      setStudents(data.students || [])
+      if (data.students && data.students.length > 0) {
+        toast.success(`${data.students.length} étudiant(s) chargé(s)`)
+      } else {
+        toast.info('Aucun étudiant dans ce groupe')
+      }
     } catch (error: any) {
-      toast.error('Erreur lors du chargement des étudiants')
-      console.error(error)
+      console.error('❌ Error loading students:', error)
+      toast.error('Erreur lors du chargement des étudiants', {
+        description: error.message
+      })
+      setStudents([])
     } finally {
       setLoading(false)
     }
@@ -267,6 +303,17 @@ export default function TeacherGradesPage() {
     return totalCoef > 0 ? totalWeighted / totalCoef : null
   }
 
+  const getGradeStats = () => {
+    const allGrades = students.flatMap(s => s.grades)
+    const totalGrades = allGrades.length
+    const studentsWithGrades = students.filter(s => s.grades.length > 0).length
+    const averageGrade = allGrades.length > 0 
+      ? allGrades.reduce((sum, g) => sum + g.valeur, 0) / allGrades.length 
+      : 0
+    
+    return { totalGrades, studentsWithGrades, averageGrade }
+  }
+
   const getSubjectName = () => {
     const subject = subjects.find(s => s.id === selectedSubject)
     return subject?.nom || ''
@@ -304,72 +351,157 @@ export default function TeacherGradesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {/* Subject Selection */}
-            <div className="space-y-2">
-              <Label>Matière</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir une matière" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map(subject => (
-                    <SelectItem key={subject.id} value={subject.id}>
-                      {subject.nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {loading && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2"></div>
+              <span className="text-muted-foreground">Chargement...</span>
             </div>
+          )}
+          
+          {!loading && subjects.length === 0 && (
+            <div className="text-center py-8 px-4 bg-muted/50 rounded-lg">
+              <AlertCircle className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+              <h3 className="font-semibold mb-2">Aucune matière assignée</h3>
+              <p className="text-sm text-muted-foreground">
+                Vous n'avez pas encore de matières assignées. Contactez l'administrateur pour vous assigner des matières.
+              </p>
+            </div>
+          )}
+          
+          {subjects.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* Subject Selection */}
+              <div className="space-y-2">
+                <Label>Matière</Label>
+                <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={loading}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir une matière" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map(subject => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {subjects.length} matière(s) disponible(s)
+                </p>
+              </div>
 
-            {/* Group Selection */}
-            <div className="space-y-2">
-              <Label>Groupe</Label>
-              <Select 
-                value={selectedGroup} 
-                onValueChange={setSelectedGroup}
-                disabled={!selectedSubject || groups.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir un groupe" />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.nom} ({group.student_count} étudiants)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              {/* Group Selection */}
+              <div className="space-y-2">
+                <Label>Groupe</Label>
+                <Select 
+                  value={selectedGroup} 
+                  onValueChange={setSelectedGroup}
+                  disabled={!selectedSubject || groups.length === 0 || loading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un groupe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map(group => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.nom} ({group.student_count} étudiants)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedSubject && groups.length === 0 && !loading && (
+                  <p className="text-xs text-amber-600">
+                    Aucun groupe pour cette matière
+                  </p>
+                )}
+              </div>
 
-            {/* Semester Selection */}
-            <div className="space-y-2">
-              <Label>Semestre</Label>
-              <Select value={semester} onValueChange={(val) => setSemester(val as SemesterType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SEMESTER_1">Semestre 1</SelectItem>
-                  <SelectItem value="SEMESTER_2">Semestre 2</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              {/* Semester Selection */}
+              <div className="space-y-2">
+                <Label>Semestre</Label>
+                <Select value={semester} onValueChange={(val) => setSemester(val as SemesterType)} disabled={loading}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SEMESTER_1">Semestre 1</SelectItem>
+                    <SelectItem value="SEMESTER_2">Semestre 2</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Academic Year */}
-            <div className="space-y-2">
-              <Label>Année Scolaire</Label>
-              <Input 
-                type="text"
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                placeholder="2024-2025"
-              />
+              {/* Academic Year */}
+              <div className="space-y-2">
+                <Label>Année Scolaire</Label>
+                <Input 
+                  type="text"
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                  placeholder="2024-2025"
+                  disabled={loading}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Statistics Card */}
+      {selectedGroup && students.length > 0 && (() => {
+        const stats = getGradeStats()
+        return (
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalGrades}</div>
+                <p className="text-xs text-muted-foreground mt-1">notes enregistrées</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Étudiants Notés</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.studentsWithGrades}/{students.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {Math.round((stats.studentsWithGrades / students.length) * 100)}% complété
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Moyenne Classe</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {stats.averageGrade > 0 ? stats.averageGrade.toFixed(2) : '-'}/20
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">moyenne générale</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Statut</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Badge variant={stats.studentsWithGrades === students.length ? "default" : "secondary"} className="text-sm">
+                  {stats.studentsWithGrades === students.length ? (
+                    <><CheckCircle className="h-3 w-3 mr-1" />Complet</>
+                  ) : (
+                    <><AlertCircle className="h-3 w-3 mr-1" />En cours</>
+                  )}
+                </Badge>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {students.length - stats.studentsWithGrades} restant(s)
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )
+      })()}
 
       {/* Students List */}
       {selectedGroup && students.length > 0 && (
@@ -382,10 +514,12 @@ export default function TeacherGradesPage() {
                   {getSubjectName()} • {semester === 'SEMESTER_1' ? 'Semestre 1' : 'Semestre 2'} • {academicYear}
                 </CardDescription>
               </div>
-              <Badge variant="outline">
-                <Users className="h-4 w-4 mr-1" />
-                {students.length} étudiants
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">
+                  <Users className="h-4 w-4 mr-1" />
+                  {students.length} étudiants
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -433,10 +567,20 @@ export default function TeacherGradesPage() {
                               className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                             >
                               <div className="flex items-center gap-4">
-                                <div className="text-2xl font-bold text-primary">
-                                  {grade.valeur}/20
+                                <div className="flex flex-col items-center">
+                                  <div className={`text-2xl font-bold ${
+                                    grade.valeur >= 10 ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {grade.valeur}/20
+                                  </div>
+                                  <Badge 
+                                    variant={grade.valeur >= 10 ? "default" : "destructive"}
+                                    className="text-xs"
+                                  >
+                                    {grade.valeur >= 10 ? 'Admis' : 'Non admis'}
+                                  </Badge>
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                   <div className="font-medium">
                                     {gradeTypeLabels[grade.type as GradeType]}
                                   </div>
@@ -445,8 +589,8 @@ export default function TeacherGradesPage() {
                                     {grade.date_examen && ` • ${new Date(grade.date_examen).toLocaleDateString('fr-FR')}`}
                                   </div>
                                   {grade.observation && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {grade.observation}
+                                    <div className="text-xs text-muted-foreground mt-1 italic">
+                                      📝 {grade.observation}
                                     </div>
                                   )}
                                 </div>
@@ -509,19 +653,30 @@ export default function TeacherGradesPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="valeur">Note <span className="text-red-500">*</span></Label>
-              <Input
-                id="valeur"
-                type="number"
-                step="0.5"
-                min="0"
-                max="20"
-                value={gradeForm.valeur}
-                onChange={(e) => setGradeForm({...gradeForm, valeur: e.target.value})}
-                placeholder="0-20"
-              />
-              <p className="text-xs text-muted-foreground">
-                Le coefficient sera automatiquement pris de la matière
-              </p>
+              <div className="flex gap-2">
+                <Input
+                  id="valeur"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="20"
+                  value={gradeForm.valeur}
+                  onChange={(e) => setGradeForm({...gradeForm, valeur: e.target.value})}
+                  placeholder="0-20"
+                  className="flex-1"
+                />
+                <span className="flex items-center text-2xl font-bold text-muted-foreground">/20</span>
+              </div>
+              <div className="flex gap-2">
+                <p className="text-xs text-muted-foreground flex-1">
+                  Le coefficient sera automatiquement pris de la matière
+                </p>
+                {gradeForm.valeur && parseFloat(gradeForm.valeur) >= 0 && parseFloat(gradeForm.valeur) <= 20 && (
+                  <Badge variant={parseFloat(gradeForm.valeur) >= 10 ? "default" : "destructive"}>
+                    {parseFloat(gradeForm.valeur) >= 10 ? 'Admis' : 'Non admis'}
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">

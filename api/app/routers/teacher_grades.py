@@ -119,35 +119,44 @@ async def get_teacher_subjects(
     prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_teacher)
 ):
-    """Get all subjects taught by the current teacher"""
+    """Get all subjects taught by the current teacher from their timetable/schedule"""
     if not current_user.enseignant_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Teacher record not found"
         )
     
-    subjects = await prisma.matiere.find_many(
+    # Get unique subjects from teacher's schedule (emploitemps)
+    schedules = await prisma.emploitemps.find_many(
         where={"id_enseignant": current_user.enseignant_id},
         include={
-            "specialite": {
+            "matiere": {
                 "include": {
-                    "departement": True
+                    "specialite": {
+                        "include": {
+                            "departement": True
+                        }
+                    }
                 }
             }
-        }
+        },
+        distinct=["id_matiere"]  # Get unique subjects
     )
     
-    return {
-        "subjects": [
-            {
-                "id": subject.id,
-                "nom": subject.nom,
-                "coefficient": subject.coefficient,
-                "specialite": subject.specialite.nom,
-                "departement": subject.specialite.departement.nom
+    # Extract unique subjects from schedules
+    subjects_dict = {}
+    for schedule in schedules:
+        if schedule.matiere and schedule.matiere.id not in subjects_dict:
+            subjects_dict[schedule.matiere.id] = {
+                "id": schedule.matiere.id,
+                "nom": schedule.matiere.nom,
+                "coefficient": schedule.matiere.coefficient,
+                "specialite": schedule.matiere.specialite.nom if schedule.matiere.specialite else "",
+                "departement": schedule.matiere.specialite.departement.nom if schedule.matiere.specialite and schedule.matiere.specialite.departement else ""
             }
-            for subject in subjects
-        ]
+    
+    return {
+        "subjects": list(subjects_dict.values())
     }
 
 
@@ -157,24 +166,11 @@ async def get_subject_groups(
     prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_teacher)
 ):
-    """Get all groups (classes) for a specific subject"""
+    """Get all groups (classes) for a specific subject from teacher's timetable"""
     if not current_user.enseignant_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Teacher record not found"
-        )
-    
-    # Verify teacher teaches this subject
-    has_access = await verify_teacher_subject_access(
-        current_user.enseignant_id,
-        subject_id,
-        prisma
-    )
-    
-    if not has_access:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this subject"
         )
     
     # Get subject info
@@ -189,30 +185,33 @@ async def get_subject_groups(
             detail="Subject not found"
         )
     
-    # Get all groups for this specialty through niveau
-    # First get all niveaux for this specialty
-    niveaux = await prisma.niveau.find_many(
-        where={"id_specialite": subject.id_specialite}
+    # Get unique groups from teacher's schedule for this subject
+    schedules = await prisma.emploitemps.find_many(
+        where={
+            "id_enseignant": current_user.enseignant_id,
+            "id_matiere": subject_id
+        },
+        include={
+            "groupe": True
+        },
+        distinct=["id_groupe"]  # Get unique groups
     )
     
-    niveau_ids = [niveau.id for niveau in niveaux]
-    
-    # Then get all groups for these niveaux
-    groups = await prisma.groupe.find_many(
-        where={"id_niveau": {"in": niveau_ids}}
-    )
-    
-    # Count students for each group
+    # Extract unique groups and count students
     groups_with_count = []
-    for group in groups:
-        student_count = await prisma.etudiant.count(
-            where={"id_groupe": group.id}
-        )
-        groups_with_count.append({
-            "id": group.id,
-            "nom": group.nom,
-            "student_count": student_count
-        })
+    seen_groups = set()
+    
+    for schedule in schedules:
+        if schedule.groupe and schedule.groupe.id not in seen_groups:
+            seen_groups.add(schedule.groupe.id)
+            student_count = await prisma.etudiant.count(
+                where={"id_groupe": schedule.groupe.id}
+            )
+            groups_with_count.append({
+                "id": schedule.groupe.id,
+                "nom": schedule.groupe.nom,
+                "student_count": student_count
+            })
     
     return {
         "subject": {
@@ -240,17 +239,19 @@ async def get_group_students_for_grading(
             detail="Teacher record not found"
         )
     
-    # Verify teacher teaches this subject
-    has_access = await verify_teacher_subject_access(
-        current_user.enseignant_id,
-        subject_id,
-        prisma
+    # Verify teacher has this subject-group combination in their schedule
+    schedule_exists = await prisma.emploitemps.find_first(
+        where={
+            "id_enseignant": current_user.enseignant_id,
+            "id_matiere": subject_id,
+            "id_groupe": group_id
+        }
     )
     
-    if not has_access:
+    if not schedule_exists:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this subject"
+            detail="You don't teach this subject to this group"
         )
     
     # Get all students in the group
@@ -319,17 +320,18 @@ async def submit_single_grade(
             detail="Teacher record not found"
         )
     
-    # Verify teacher teaches this subject
-    has_access = await verify_teacher_subject_access(
-        current_user.enseignant_id,
-        grade_data.id_matiere,
-        prisma
+    # Verify teacher has this subject in their schedule
+    schedule_exists = await prisma.emploitemps.find_first(
+        where={
+            "id_enseignant": current_user.enseignant_id,
+            "id_matiere": grade_data.id_matiere
+        }
     )
     
-    if not has_access:
+    if not schedule_exists:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this subject"
+            detail="You don't teach this subject"
         )
     
     # Verify student is enrolled in subject's specialty
@@ -439,17 +441,18 @@ async def submit_bulk_grades(
             detail="Teacher record not found"
         )
     
-    # Verify teacher teaches this subject
-    has_access = await verify_teacher_subject_access(
-        current_user.enseignant_id,
-        bulk_data.id_matiere,
-        prisma
+    # Verify teacher has this subject in their schedule
+    schedule_exists = await prisma.emploitemps.find_first(
+        where={
+            "id_enseignant": current_user.enseignant_id,
+            "id_matiere": bulk_data.id_matiere
+        }
     )
     
-    if not has_access:
+    if not schedule_exists:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this subject"
+            detail="You don't teach this subject"
         )
     
     # Get subject to retrieve its coefficient
