@@ -41,11 +41,15 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
   
   if (!timetable || Object.keys(timetable).length === 0) {
     return (
-      <Card>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-indigo-50">
         <CardContent className="p-8 text-center">
-          <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">Aucun cours programmé pour cette semaine</p>
-          {note && <p className="text-sm text-blue-600 mt-2">{note}</p>}
+          <div className="flex flex-col items-center gap-4">
+            <div className="p-3 bg-indigo-100 rounded-lg">
+              <Calendar className="h-8 w-8 text-indigo-600" />
+            </div>
+            <p className="text-gray-700 font-medium">Aucun cours programmé pour cette semaine</p>
+            {note && <p className="text-sm text-gray-500">{note}</p>}
+          </div>
         </CardContent>
       </Card>
     );
@@ -59,7 +63,6 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
     return daySessions.find((session: any) => {
       const sessionStart = session.start_time;
       const sessionEnd = session.end_time;
-      // Match if session starts within this time slot
       return sessionStart >= timeSlot.start && sessionStart < timeSlot.end;
     });
   };
@@ -70,39 +73,78 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
     totalCourses += sessions.length;
   });
 
+  // Subject color mapping
+  const getSubjectColor = (subject: string) => {
+    const colors: Record<string, { gradient: string; light: string }> = {
+      'ALGO': { gradient: 'from-blue-500 to-blue-600', light: 'bg-blue-50' },
+      'MATH': { gradient: 'from-green-500 to-green-600', light: 'bg-green-50' },
+      'ARCH': { gradient: 'from-purple-500 to-purple-600', light: 'bg-purple-50' },
+      'ENG': { gradient: 'from-orange-500 to-orange-600', light: 'bg-orange-50' },
+      'default': { gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50' }
+    };
+    const code = subject.split(' ')[0];
+    return colors[code] || colors['default'];
+  };
+
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold">Mon Emploi du Temps</h2>
-        <p className="text-muted-foreground">
-          Semaine du {week_start} au {week_end}
-        </p>
-        {total_hours && (
-          <p className="text-sm text-muted-foreground">
-            Total: {total_hours}
-          </p>
-        )}
-        {note && (
-          <Alert className="mt-4 border-blue-200 bg-blue-50">
-            <AlertDescription className="text-blue-700">
-              <strong>Note:</strong> {note}
-            </AlertDescription>
-          </Alert>
-        )}
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <BookOpen className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Cours cette semaine</p>
+                <p className="text-2xl font-bold text-gray-900">{totalCourses}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-green-100 rounded-lg">
+                <Calendar className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Jours de cours</p>
+                <p className="text-2xl font-bold text-gray-900">{Object.keys(timetable).length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Clock className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Heures totales</p>
+                <p className="text-2xl font-bold text-gray-900">{total_hours}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Grid Timetable */}
-      <Card>
-        <CardContent className="p-4">
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[800px]">
               <thead>
-                <tr>
-                  <th className="border border-gray-300 bg-gray-100 p-3 text-center font-semibold">
+                <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
+                  <th className="p-4 text-center font-bold text-gray-900 border-r border-indigo-200">
                     Horaire
                   </th>
                   {DAYS_OF_WEEK.map((day) => (
-                    <th key={day} className="border border-gray-300 bg-gray-100 p-3 text-center font-semibold">
+                    <th key={day} className="p-4 text-center font-bold text-gray-900 border-r border-indigo-200">
                       {day}
                     </th>
                   ))}
@@ -110,32 +152,31 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
               </thead>
               <tbody>
                 {TIME_SLOTS.map((slot, index) => (
-                  <tr key={index}>
-                    <td className="border border-gray-300 bg-gray-50 p-3 text-center align-middle font-medium text-sm whitespace-nowrap">
+                  <tr key={index} className={`border-b border-gray-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                    <td className="p-4 text-center align-top font-medium text-sm text-gray-900 border-r border-gray-200 bg-gradient-to-r from-indigo-50 to-transparent">
                       <div className="flex flex-col">
                         <span className="font-bold">{slot.start}</span>
-                        <span className="text-xs text-muted-foreground">à</span>
+                        <span className="text-xs text-gray-500">à</span>
                         <span className="font-bold">{slot.end}</span>
                       </div>
                     </td>
                     {DAYS_OF_WEEK.map((day) => {
                       const session = findSessionForSlot(day, slot);
+                      const colors = session ? getSubjectColor(session.matiere?.nom || '') : null;
                       
                       return (
                         <td 
                           key={`${day}-${index}`} 
-                          className={`border border-gray-300 p-2 align-top ${
-                            session ? 'bg-blue-50' : 'bg-white'
-                          }`}
+                          className="p-2 align-top border-r border-gray-200 min-h-[100px] hover:bg-indigo-50/50 transition-all"
                         >
                           {session ? (
-                            <div className="space-y-1">
-                              <div className="font-semibold text-sm text-blue-900 flex items-start gap-1">
-                                <BookOpen className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                <span className="line-clamp-2">{session.matiere.nom}</span>
+                            <div className={`h-full bg-gradient-to-br ${colors?.gradient} rounded-lg p-3 text-white shadow-md hover:shadow-lg transition-all cursor-pointer group hover:scale-105 transform`}>
+                              <div className="font-semibold text-sm leading-tight line-clamp-2 mb-1 flex items-start gap-1">
+                                <BookOpen className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                <span>{session.matiere?.nom || 'Cours'}</span>
                               </div>
                               
-                              <div className="text-xs text-gray-700 space-y-0.5">
+                              <div className="text-xs text-white/90 space-y-0.5">
                                 <div className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
                                   <span>{session.start_time} - {session.end_time}</span>
@@ -143,27 +184,27 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
                                 
                                 <div className="flex items-center gap-1">
                                   <Users className="h-3 w-3" />
-                                  <span className="truncate">Groupe {session.groupe.nom}</span>
+                                  <span className="truncate">Groupe {session.groupe?.nom || 'N/A'}</span>
                                 </div>
                                 
                                 <div className="flex items-center gap-1">
                                   <MapPin className="h-3 w-3" />
-                                  <span>Salle {session.salle.code}</span>
+                                  <span className="truncate">Salle {session.salle?.code || 'N/A'}</span>
                                 </div>
                               </div>
 
-                              <div className="text-xs italic text-gray-600 truncate">
-                                {session.groupe.specialite}
+                              <div className="text-xs text-white/80 italic mt-1 truncate">
+                                {session.groupe?.specialite && `${session.groupe.specialite}`}
                               </div>
 
                               {session.status === 'PLANNED' && (
-                                <Badge variant="default" className="text-xs">
-                                  Programmé
+                                <Badge className="text-xs mt-2 bg-white/20 text-white border-0 hover:bg-white/30">
+                                  ✓ Programmé
                                 </Badge>
                               )}
                               {session.status === 'CANCELED' && (
-                                <Badge variant="destructive" className="text-xs">
-                                  Annulé
+                                <Badge className="text-xs mt-2 bg-red-500/40 text-white border-0">
+                                  ✕ Annulé
                                 </Badge>
                               )}
                             </div>
@@ -179,25 +220,14 @@ const WeekView: React.FC<WeekViewProps> = ({ scheduleData }) => {
         </CardContent>
       </Card>
 
-      {/* Statistics */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{totalCourses}</div>
-              <div className="text-sm text-muted-foreground">Cours cette semaine</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-green-600">{Object.keys(timetable).length}</div>
-              <div className="text-sm text-muted-foreground">Jours de cours</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-purple-600">{total_hours}</div>
-              <div className="text-sm text-muted-foreground">Heures totales</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {note && (
+        <Alert className="border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+          <AlertCircle className="h-4 w-4 text-indigo-600" />
+          <AlertDescription className="text-indigo-900 font-medium">
+            <strong>Note:</strong> {note}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 };
@@ -286,63 +316,76 @@ export default function TeacherTimetablePage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header with navigation */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <GraduationCap className="h-8 w-8" />
-            Mon Emploi du Temps
-          </h1>
-          <p className="text-muted-foreground">
-            Semaine du {formatWeekRange()}
-          </p>
+      {/* Modern Gradient Header */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 text-white">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+        </div>
+        <div className="relative z-10 flex items-center gap-3">
+          <GraduationCap className="h-8 w-8" />
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+              👨‍🏫 Mon Emploi du Temps
+            </h1>
+            <p className="text-indigo-100 text-lg mt-1">
+              Semaine du {formatWeekRange()}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Week Navigation */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 p-4 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-lg border border-indigo-100">
+        <div className="text-sm text-gray-600">
+          <p className="font-semibold text-gray-900">Navigation de la semaine</p>
+          <p className="text-xs text-gray-500 mt-1">Utilisez les boutons pour naviguer</p>
         </div>
         
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
+          <button 
             onClick={() => navigateWeek('prev')}
             disabled={loading}
+            className="p-2 hover:bg-indigo-100 rounded-lg transition-all text-gray-600 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Semaine précédente"
           >
-            <ChevronLeft className="h-4 w-4" />
-            Précédent
-          </Button>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
           
-          <Button 
-            variant="outline" 
-            size="sm"
+          <button 
             onClick={goToCurrentWeek}
             disabled={loading}
+            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Semaine actuelle"
           >
+            <Calendar className="h-4 w-4" />
             Aujourd'hui
-          </Button>
+          </button>
           
-          <Button 
-            variant="outline" 
-            size="sm"
+          <button 
             onClick={() => navigateWeek('next')}
             disabled={loading}
+            className="p-2 hover:bg-indigo-100 rounded-lg transition-all text-gray-600 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Semaine suivante"
           >
-            Suivant
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            <ChevronRight className="h-5 w-5" />
+          </button>
         </div>
       </div>
 
       {/* Error display */}
       {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+        <Alert variant="destructive" className="border-red-200 bg-red-50">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-900 font-medium">{error}</AlertDescription>
         </Alert>
       )}
 
       {/* Loading overlay */}
       {loading && scheduleData && (
-        <div className="text-center">
-          <Loader2 className="h-4 w-4 animate-spin inline-block mr-2" />
-          <span className="text-sm text-muted-foreground">Chargement...</span>
+        <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+          <Loader2 className="h-4 w-4 animate-spin inline-block mr-2 text-indigo-600" />
+          <span className="text-sm text-indigo-900 font-medium">Chargement...</span>
         </div>
       )}
 
