@@ -5,9 +5,13 @@ import pandas as pd
 import io
 from datetime import datetime
 import bcrypt
+import logging
 
 from app.db.prisma_client import get_prisma
 from app.core.deps import require_role
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/bulk-import", tags=["Admin - Bulk Import"])
 
@@ -36,6 +40,14 @@ async def bulk_import_students(
     The student's specialite and niveau are automatically derived from the groupe.
     """
     
+    logger.info(f"Starting bulk import for students. File: {file.filename}")
+    
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided"
+        )
+    
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -45,8 +57,11 @@ async def bulk_import_students(
     # Read Excel file
     try:
         contents = await file.read()
+        logger.info(f"File read successfully. Size: {len(contents)} bytes")
         df = pd.read_excel(io.BytesIO(contents))
+        logger.info(f"Excel parsed successfully. Rows: {len(df)}, Columns: {list(df.columns)}")
     except Exception as e:
+        logger.error(f"Failed to read Excel file: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to read Excel file: {str(e)}"
@@ -57,9 +72,10 @@ async def bulk_import_students(
     missing_columns = [col for col in required_columns if col not in df.columns]
     
     if missing_columns:
+        logger.error(f"Missing columns: {missing_columns}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required columns: {', '.join(missing_columns)}. Please download the correct template using the 'Télécharger le Modèle Excel' button."
+            detail=f"Missing required columns: {', '.join(missing_columns)}. Required columns are: {', '.join(required_columns)}. Your file has: {', '.join(df.columns)}"
         )
     
     try:
@@ -71,22 +87,28 @@ async def bulk_import_students(
             "errors": []
         }
         
+        logger.info(f"Processing {len(df)} rows...")
+        
         for index, row in df.iterrows():
             try:
                 # Skip empty rows
-                if pd.isna(row['email']):
+                if pd.isna(row['email']) or pd.isna(row['nom']) or pd.isna(row['prenom']):
                     results["skipped"] += 1
-                    results["errors"].append(f"Row {index + 2}: Missing email")
+                    results["errors"].append(f"Row {index + 2}: Missing required fields (nom, prenom, or email)")
                     continue
                 
                 # Find group by name
+                groupe_nom = str(row['groupe_nom']).strip()
+                logger.info(f"Row {index + 2}: Looking for group '{groupe_nom}'")
+                
                 groupe = await prisma.groupe.find_first(
-                    where={"nom": str(row['groupe_nom']).strip()}
+                    where={"nom": groupe_nom}
                 )
                 
                 if not groupe:
                     results["skipped"] += 1
-                    results["errors"].append(f"Row {index + 2}: Group '{row['groupe_nom']}' not found")
+                    results["errors"].append(f"Row {index + 2}: Group '{groupe_nom}' not found")
+                    logger.warning(f"Group '{groupe_nom}' not found")
                     continue
                 
                 # Check if email already exists in utilisateur table
@@ -303,15 +325,35 @@ async def bulk_import_teachers(
 
 @router.get("/template/students")
 async def download_students_template(
+    prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_role(["ADMIN"]))
 ):
     """Download Excel template for student bulk import"""
+    
+    # Get actual groups from database
+    groups = await prisma.groupe.find_many(
+        take=5,
+        include={
+            "niveau": {
+                "include": {
+                    "specialite": True
+                }
+            }
+        }
+    )
+    
+    # Use real group names or fallback to examples
+    group_names = [group.nom for group in groups] if groups else ['L3 GL Groupe 1', 'L3 GL Groupe 2']
+    
+    # Ensure we have at least 5 examples
+    while len(group_names) < 5:
+        group_names.append(group_names[0] if group_names else 'L3 GL Groupe 1')
     
     template_data = {
         'nom': ['Dupont', 'Martin', 'Bernard', 'Dubois', 'Moreau'],
         'prenom': ['Jean', 'Marie', 'Pierre', 'Sophie', 'Lucas'],
         'email': ['jean.dupont@student.com', 'marie.martin@student.com', 'pierre.bernard@student.com', 'sophie.dubois@student.com', 'lucas.moreau@student.com'],
-        'groupe_nom': ['DSI-3-1', 'DSI-3-2', 'DSI-3-3', 'DSI-3-4', 'DSI-3-5'],
+        'groupe_nom': group_names[:5],
         'password': ['Student123', 'Student123', 'Student123', 'Student123', 'Student123']
     }
     
@@ -320,6 +362,16 @@ async def download_students_template(
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Students')
+        
+        # Add a help sheet with available groups
+        if groups:
+            help_data = {
+                'Available Groups': [g.nom for g in groups],
+                'Niveau': [g.niveau.nom if g.niveau else 'N/A' for g in groups],
+                'Spécialité': [g.niveau.specialite.nom if g.niveau and g.niveau.specialite else 'N/A' for g in groups]
+            }
+            help_df = pd.DataFrame(help_data)
+            help_df.to_excel(writer, index=False, sheet_name='Available Groups')
     
     output.seek(0)
     
@@ -334,15 +386,26 @@ async def download_students_template(
 
 @router.get("/template/teachers")
 async def download_teachers_template(
+    prisma: Prisma = Depends(get_prisma),
     current_user = Depends(require_role(["ADMIN"]))
 ):
     """Download Excel template for teacher bulk import"""
+    
+    # Get actual departments from database
+    departments = await prisma.departement.find_many(take=5)
+    
+    # Use real department names or fallback to examples
+    dept_names = [dept.nom for dept in departments] if departments else ['Informatique', 'Mathématiques', 'Physique']
+    
+    # Ensure we have at least 3 examples
+    while len(dept_names) < 3:
+        dept_names.append(dept_names[0] if dept_names else 'Informatique')
     
     template_data = {
         'nom': ['Benali', 'Mansouri', 'Khelifi'],
         'prenom': ['Ahmed', 'Fatima', 'Karim'],
         'email': ['ahmed.benali@university.com', 'fatima.mansouri@university.com', 'karim.khelifi@university.com'],
-        'departement_nom': ['Informatique', 'Informatique', 'Informatique'],
+        'departement_nom': dept_names[:3],
         'password': ['Teacher123', 'Teacher123', 'Teacher123']
     }
     
@@ -351,6 +414,14 @@ async def download_teachers_template(
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Teachers')
+        
+        # Add a help sheet with available departments
+        if departments:
+            help_data = {
+                'Available Departments': [d.nom for d in departments]
+            }
+            help_df = pd.DataFrame(help_data)
+            help_df.to_excel(writer, index=False, sheet_name='Available Departments')
     
     output.seek(0)
     

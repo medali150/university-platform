@@ -44,6 +44,9 @@ export default function MakeupsPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createFormData, setCreateFormData] = useState<Partial<CreateMakeupSession>>({
     motif: '',
+    id_matiere: undefined,
+    id_groupe: undefined,
+    id_salle: undefined,
   })
   
   // Teacher data
@@ -86,21 +89,38 @@ export default function MakeupsPage() {
   const loadTeacherData = async () => {
     try {
       setLoadingTeacherData(true)
-      const token = localStorage.getItem('token')
+      // Try both token keys for compatibility
+      const token = localStorage.getItem('authToken') || localStorage.getItem('access_token')
       if (!token) {
-        console.error('No token found')
+        console.error('No authentication token found')
+        toast({
+          title: 'Erreur',
+          description: 'Token d\'authentification non trouvé. Veuillez vous reconnecter.',
+          variant: 'destructive',
+        })
         return
       }
+
+      console.log('🔍 Fetching teacher data...')
 
       // Fetch teacher profile and timetable
       const [profileRes, timetableRes] = await Promise.all([
         fetch('http://localhost:8000/teacher/profile', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }),
         fetch('http://localhost:8000/teacher/timetable', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         })
       ])
+
+      console.log('Profile response:', profileRes.status)
+      console.log('Timetable response:', timetableRes.status)
 
       if (profileRes.ok && timetableRes.ok) {
         const profile = await profileRes.json()
@@ -109,8 +129,8 @@ export default function MakeupsPage() {
         // Handle both array and object response
         const timetable = Array.isArray(timetableData) ? timetableData : (timetableData.schedules || [])
         
-        console.log('Teacher Profile:', profile)
-        console.log('Teacher Timetable:', timetable)
+        console.log('✅ Teacher Profile:', profile)
+        console.log('✅ Teacher Timetable:', timetable)
         
         // Extract unique subjects from timetable
         const subjectsMap = new Map()
@@ -148,9 +168,9 @@ export default function MakeupsPage() {
         const groups = Array.from(groupsMap.values())
         const rooms = Array.from(roomsMap.values())
         
-        console.log('Extracted Subjects:', subjects)
-        console.log('Extracted Groups:', groups)
-        console.log('Extracted Rooms:', rooms)
+        console.log('📚 Extracted Subjects:', subjects)
+        console.log('👥 Extracted Groups:', groups)
+        console.log('🏫 Extracted Rooms:', rooms)
         
         setTeacherInfo(profile.teacher_info || profile)
         setTeacherSubjects(subjects)
@@ -178,21 +198,25 @@ export default function MakeupsPage() {
           })
         }
       } else {
-        console.error('API errors:', {
-          profile: profileRes.status,
-          timetable: timetableRes.status
+        const profileError = !profileRes.ok ? await profileRes.text() : null
+        const timetableError = !timetableRes.ok ? await timetableRes.text() : null
+        
+        console.error('❌ API errors:', {
+          profile: { status: profileRes.status, error: profileError },
+          timetable: { status: timetableRes.status, error: timetableError }
         })
+        
         toast({
-          title: 'Erreur',
-          description: 'Impossible de charger les données de l\'emploi du temps',
+          title: 'Erreur de chargement',
+          description: `Impossible de charger les données (Profile: ${profileRes.status}, Emploi: ${timetableRes.status})`,
           variant: 'destructive',
         })
       }
     } catch (error) {
-      console.error('Error loading teacher data:', error)
+      console.error('❌ Error loading teacher data:', error)
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les données de l\'enseignant',
+        description: error instanceof Error ? error.message : 'Erreur lors du chargement des données enseignant',
         variant: 'destructive',
       })
     } finally {
@@ -730,12 +754,23 @@ export default function MakeupsPage() {
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg">Séance originale (annulée)</h3>
                 
+                {/* Debug Info */}
+                {teacherSubjects.length > 0 && (
+                  <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs">
+                    <p>Debug: {teacherSubjects.length} matières chargées</p>
+                    <p>Valeur actuelle: {createFormData.id_matiere || 'non défini'}</p>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="id_matiere">Matière *</Label>
                     <Select 
-                      value={createFormData.id_matiere || ''} 
-                      onValueChange={(value) => setCreateFormData({ ...createFormData, id_matiere: value })}
+                      value={createFormData.id_matiere} 
+                      onValueChange={(value) => {
+                        console.log('📚 Matière sélectionnée:', value)
+                        setCreateFormData({ ...createFormData, id_matiere: value })
+                      }}
                       disabled={teacherSubjects.length === 0}
                     >
                       <SelectTrigger>
@@ -761,8 +796,11 @@ export default function MakeupsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="id_groupe">Groupe *</Label>
                     <Select 
-                      value={createFormData.id_groupe || ''} 
-                      onValueChange={(value) => setCreateFormData({ ...createFormData, id_groupe: value })}
+                      value={createFormData.id_groupe} 
+                      onValueChange={(value) => {
+                        console.log('👥 Groupe sélectionné:', value)
+                        setCreateFormData({ ...createFormData, id_groupe: value })
+                      }}
                       disabled={teacherGroups.length === 0}
                     >
                       <SelectTrigger>

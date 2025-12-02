@@ -46,3 +46,9 @@ out/
 
 # Build outputs
 *.log
+
+# Database Backups
+backups/
+*.backup
+backup_*.sql
+backup_*.backup
