@@ -199,8 +199,11 @@ export default function MessagesPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="text-white/60">Chargement des messages...</p>
+        </div>
       </div>
     )
   }
@@ -208,16 +211,35 @@ export default function MessagesPage() {
   if (!user) return null
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
-      {/* Sidebar - Conversations List */}
-      <div className="w-full md:w-96 bg-white border-r flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b bg-white">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">Messages</h1>
+    <div className="space-y-6 p-4 sm:p-6 md:p-8">
+      {/* Header Section - Matching Dashboard Style */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 sm:p-8 text-white shadow-lg">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+        </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <MessageCircle className="h-8 w-8" />
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Messages 💬</h1>
+          </div>
+          <p className="text-blue-100 text-base sm:text-lg">
+            Communiquez avec vos enseignants et étudiants
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex h-[calc(100vh-16rem)] bg-white rounded-lg shadow-lg overflow-hidden border-0">
+        {/* Sidebar - Conversations List */}
+        <div className="w-full md:w-96 border-r flex flex-col bg-gradient-to-br from-gray-50 to-white">
+          {/* Header */}
+          <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-cyan-50">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Conversations</h2>
             <Dialog open={showNewMessageDialog} onOpenChange={setShowNewMessageDialog}>
               <DialogTrigger asChild>
-                <Button size="sm" className="rounded-full">
+                <Button size="sm" className="rounded-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md">
                   <Plus className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
@@ -271,12 +293,12 @@ export default function MessagesPage() {
           
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Rechercher une conversation..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 rounded-full bg-gray-100 border-none"
+              className="pl-10 rounded-lg bg-white border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -297,21 +319,21 @@ export default function MessagesPage() {
             filteredContacts.map((contact) => (
               <div
                 key={contact.userId}
-                className={`p-4 cursor-pointer transition-all hover:bg-gray-50 border-l-4 ${
+                className={`p-4 cursor-pointer transition-all duration-200 border-l-4 ${
                   selectedConversation === contact.userId 
-                    ? 'bg-blue-50 border-l-blue-500' 
-                    : 'border-l-transparent'
+                    ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-l-blue-500 shadow-sm' 
+                    : 'border-l-transparent hover:bg-gray-50'
                 }`}
                 onClick={() => setSelectedConversation(contact.userId)}
               >
                 <div className="flex items-start space-x-3">
                   {/* Avatar */}
                   <div className="relative flex-shrink-0">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold shadow-md">
                       {contact.user.prenom.charAt(0)}{contact.user.nom.charAt(0)}
                     </div>
                     {contact.unreadCount > 0 && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg animate-pulse">
                         {contact.unreadCount}
                       </div>
                     )}
@@ -353,13 +375,15 @@ export default function MessagesPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white">
+      <div className="flex-1 flex flex-col">
         {!selectedConversation ? (
-          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-            <div className="text-center">
-              <MessageCircle className="h-24 w-24 mx-auto mb-4 text-gray-300" />
-              <h2 className="text-2xl font-semibold text-gray-700 mb-2">Bienvenue dans Messages</h2>
-              <p className="text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+            <div className="text-center p-8 rounded-2xl bg-white/80 backdrop-blur-sm shadow-xl border border-white/20">
+              <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <MessageCircle className="h-12 w-12 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Bienvenue dans Messages</h2>
+              <p className="text-gray-600">
                 Sélectionnez une conversation pour commencer à discuter
               </p>
             </div>
@@ -367,28 +391,31 @@ export default function MessagesPage() {
         ) : (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b bg-white flex items-center justify-between">
+            <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-cyan-50 flex items-center justify-between shadow-sm">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold shadow-md">
                   {selectedConvData?.user.prenom.charAt(0)}{selectedConvData?.user.nom.charAt(0)}
                 </div>
                 <div>
-                  <h2 className="font-semibold">{selectedConvData && MessagesAPIClient.formatUserName(selectedConvData.user)}</h2>
-                  <p className="text-xs text-muted-foreground">
+                  <h2 className="font-bold text-gray-800">{selectedConvData && MessagesAPIClient.formatUserName(selectedConvData.user)}</h2>
+                  <p className="text-xs text-gray-600">
                     {selectedConvData && MessagesAPIClient.getRoleDisplayName(selectedConvData.user.role)}
                   </p>
                 </div>
               </div>
-              <Button variant="ghost" size="sm">
-                <MoreVertical className="h-5 w-5" />
+              <Button variant="ghost" size="sm" className="hover:bg-white/50">
+                <MoreVertical className="h-5 w-5 text-gray-600" />
               </Button>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-br from-gray-50 to-gray-100">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-br from-blue-50/30 via-purple-50/30 to-pink-50/30">
               {messages.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p>Aucun message</p>
+                <div className="text-center py-12 text-gray-500">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+                    <MessageCircle className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <p className="font-medium">Aucun message</p>
                   <p className="text-sm mt-1">Envoyez le premier message!</p>
                 </div>
               ) : (
@@ -402,7 +429,7 @@ export default function MessagesPage() {
                       className={`flex ${isSent ? 'justify-end' : 'justify-start'} items-end space-x-2`}
                     >
                       {!isSent && showAvatar && (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center text-white text-xs font-semibold shadow-md">
                           {msg.expediteur.prenom.charAt(0)}
                         </div>
                       )}
@@ -410,16 +437,16 @@ export default function MessagesPage() {
 
                       <div className={`max-w-[70%] ${isSent ? 'order-2' : 'order-1'}`}>
                         <div
-                          className={`rounded-2xl px-4 py-2 ${
+                          className={`rounded-2xl px-4 py-3 ${
                             isSent
-                              ? 'bg-blue-500 text-white rounded-br-md'
-                              : 'bg-white text-gray-900 rounded-bl-md shadow-sm'
+                              ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-br-md shadow-md'
+                              : 'bg-white text-gray-900 rounded-bl-md shadow-md border border-gray-100'
                           }`}
                         >
                           <p className="text-sm whitespace-pre-wrap break-words">{msg.contenu}</p>
                         </div>
                         <div className={`flex items-center space-x-1 mt-1 px-2 ${isSent ? 'justify-end' : 'justify-start'}`}>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-gray-500">
                             {new Date(msg.createdAt).toLocaleTimeString('fr-FR', {
                               hour: '2-digit',
                               minute: '2-digit'
@@ -438,12 +465,12 @@ export default function MessagesPage() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 border-t bg-white">
-              <div className="flex items-end space-x-2">
-                <Button variant="ghost" size="sm" className="rounded-full">
+            <div className="p-4 border-t bg-gradient-to-r from-blue-50 to-cyan-50 shadow-lg">
+              <div className="flex items-end space-x-2 bg-white rounded-2xl p-2 shadow-md">
+                <Button variant="ghost" size="sm" className="rounded-full hover:bg-blue-50">
                   <Smile className="h-5 w-5 text-gray-500" />
                 </Button>
-                <Button variant="ghost" size="sm" className="rounded-full">
+                <Button variant="ghost" size="sm" className="rounded-full hover:bg-blue-50">
                   <Paperclip className="h-5 w-5 text-gray-500" />
                 </Button>
                 <Textarea
@@ -457,12 +484,12 @@ export default function MessagesPage() {
                     }
                   }}
                   rows={1}
-                  className="flex-1 resize-none rounded-full border-gray-300 focus:border-blue-500 py-3"
+                  className="flex-1 resize-none border-none focus:ring-0 py-3 bg-transparent"
                 />
                 <Button 
                   onClick={sendMessage} 
                   disabled={!newMessage.trim() || sending}
-                  className="rounded-full w-12 h-12 p-0"
+                  className="rounded-full w-12 h-12 p-0 bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg"
                 >
                   {sending ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -474,6 +501,7 @@ export default function MessagesPage() {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   )
