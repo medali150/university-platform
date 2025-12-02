@@ -45,11 +45,20 @@ export default function MakeupsPage() {
   const [createFormData, setCreateFormData] = useState<Partial<CreateMakeupSession>>({
     motif: '',
   })
+  
+  // Teacher data
+  const [teacherInfo, setTeacherInfo] = useState<any>(null)
+  const [teacherSubjects, setTeacherSubjects] = useState<any[]>([])
+  const [teacherGroups, setTeacherGroups] = useState<any[]>([])
+  const [loadingTeacherData, setLoadingTeacherData] = useState(false)
 
   // Load data
   useEffect(() => {
     if (user) {
       loadData()
+      if (user.role === 'TEACHER') {
+        loadTeacherData()
+      }
     }
   }, [user, statusFilter])
 
@@ -70,6 +79,47 @@ export default function MakeupsPage() {
       })
     } finally {
       setLoadingData(false)
+    }
+  }
+
+  const loadTeacherData = async () => {
+    try {
+      setLoadingTeacherData(true)
+      const token = localStorage.getItem('token')
+      if (!token) return
+
+      // Fetch teacher profile, subjects, and groups
+      const [profileRes, subjectsRes, groupsRes] = await Promise.all([
+        fetch('http://localhost:8000/teacher/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch('http://localhost:8000/teacher/subjects', {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch('http://localhost:8000/teacher/groups', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ])
+
+      if (profileRes.ok && subjectsRes.ok && groupsRes.ok) {
+        const profile = await profileRes.json()
+        const subjects = await subjectsRes.json()
+        const groups = await groupsRes.json()
+        
+        setTeacherInfo(profile.teacher_info)
+        setTeacherSubjects(subjects)
+        setTeacherGroups(groups)
+        
+        // Auto-fill teacher ID
+        setCreateFormData(prev => ({
+          ...prev,
+          id_enseignant: profile.teacher_info.id
+        }))
+      }
+    } catch (error) {
+      console.error('Error loading teacher data:', error)
+    } finally {
+      setLoadingTeacherData(false)
     }
   }
 
@@ -179,7 +229,7 @@ export default function MakeupsPage() {
   const handleCreateSession = async () => {
     try {
       // Validate form data
-      if (!createFormData.id_emploitemps_origin || !createFormData.id_matiere || 
+      if (!createFormData.id_matiere || 
           !createFormData.id_enseignant || !createFormData.id_groupe ||
           !createFormData.date_originale || !createFormData.heure_debut_origin ||
           !createFormData.heure_fin_origin || !createFormData.date_proposee ||
@@ -193,8 +243,16 @@ export default function MakeupsPage() {
         return
       }
 
+      // Generate emploi du temps ID from components
+      const emploiTempsId = `et_${createFormData.id_matiere}_${createFormData.id_groupe}_${Date.now()}`
+      
+      const sessionData: CreateMakeupSession = {
+        ...createFormData as CreateMakeupSession,
+        id_emploitemps_origin: emploiTempsId
+      }
+
       setActionLoading(true)
-      await createMakeupSession(createFormData as CreateMakeupSession)
+      await createMakeupSession(sessionData)
       
       toast({
         title: 'Succès',
@@ -263,7 +321,12 @@ export default function MakeupsPage() {
             <Button
               size="lg"
               className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
-              onClick={() => setShowCreateDialog(true)}
+              onClick={() => {
+                setShowCreateDialog(true)
+                if (user.role === 'TEACHER' && !teacherInfo) {
+                  loadTeacherData()
+                }
+              }}
             >
               <Plus className="mr-2 h-5 w-5" />
               Nouvelle demande
@@ -566,49 +629,58 @@ export default function MakeupsPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Teacher Info */}
+            {teacherInfo && (
+              <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
+                <h3 className="font-semibold text-blue-700 dark:text-blue-300 mb-2">Enseignant</h3>
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  {teacherInfo.prenom} {teacherInfo.nom}
+                </p>
+                <p className="text-xs text-gray-500">{teacherInfo.email}</p>
+              </div>
+            )}
+
             {/* Original Session Info */}
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Séance originale (annulée)</h3>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="id_emploitemps_origin">ID Emploi du temps *</Label>
-                  <Input
-                    id="id_emploitemps_origin"
-                    placeholder="Ex: et_123456"
-                    value={createFormData.id_emploitemps_origin || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, id_emploitemps_origin: e.target.value })}
-                  />
+                  <Label htmlFor="id_matiere">Matière *</Label>
+                  <Select 
+                    value={createFormData.id_matiere || ''} 
+                    onValueChange={(value) => setCreateFormData({ ...createFormData, id_matiere: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionnez une matière" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teacherSubjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.nom}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="id_matiere">ID Matière *</Label>
-                  <Input
-                    id="id_matiere"
-                    placeholder="Ex: mat_123456"
-                    value={createFormData.id_matiere || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, id_matiere: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="id_enseignant">ID Enseignant *</Label>
-                  <Input
-                    id="id_enseignant"
-                    placeholder="Ex: ens_123456"
-                    value={createFormData.id_enseignant || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, id_enseignant: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="id_groupe">ID Groupe *</Label>
-                  <Input
-                    id="id_groupe"
-                    placeholder="Ex: grp_123456"
-                    value={createFormData.id_groupe || ''}
-                    onChange={(e) => setCreateFormData({ ...createFormData, id_groupe: e.target.value })}
-                  />
+                  <Label htmlFor="id_groupe">Groupe *</Label>
+                  <Select 
+                    value={createFormData.id_groupe || ''} 
+                    onValueChange={(value) => setCreateFormData({ ...createFormData, id_groupe: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionnez un groupe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teacherGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.nom}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
