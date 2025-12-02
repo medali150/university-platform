@@ -91,27 +91,50 @@ export default function MakeupsPage() {
         return
       }
 
-      // Fetch teacher profile, subjects, and groups
-      const [profileRes, subjectsRes, groupsRes] = await Promise.all([
+      // Fetch teacher profile and timetable
+      const [profileRes, timetableRes] = await Promise.all([
         fetch('http://localhost:8000/teacher/profile', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        fetch('http://localhost:8000/teacher/subjects', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch('http://localhost:8000/teacher/groups', {
+        fetch('http://localhost:8000/teacher/timetable', {
           headers: { Authorization: `Bearer ${token}` }
         })
       ])
 
-      if (profileRes.ok && subjectsRes.ok && groupsRes.ok) {
+      if (profileRes.ok && timetableRes.ok) {
         const profile = await profileRes.json()
-        const subjects = await subjectsRes.json()
-        const groups = await groupsRes.json()
+        const timetable = await timetableRes.json()
         
         console.log('Teacher Profile:', profile)
-        console.log('Teacher Subjects:', subjects)
-        console.log('Teacher Groups:', groups)
+        console.log('Teacher Timetable:', timetable)
+        
+        // Extract unique subjects from timetable
+        const subjectsMap = new Map()
+        const groupsMap = new Map()
+        
+        timetable.forEach((session: any) => {
+          // Add subject
+          if (session.matiere && !subjectsMap.has(session.matiere.id)) {
+            subjectsMap.set(session.matiere.id, {
+              id: session.matiere.id,
+              nom: session.matiere.nom
+            })
+          }
+          
+          // Add group
+          if (session.groupe && !groupsMap.has(session.groupe.id)) {
+            groupsMap.set(session.groupe.id, {
+              id: session.groupe.id,
+              nom: session.groupe.nom
+            })
+          }
+        })
+        
+        const subjects = Array.from(subjectsMap.values())
+        const groups = Array.from(groupsMap.values())
+        
+        console.log('Extracted Subjects:', subjects)
+        console.log('Extracted Groups:', groups)
         
         setTeacherInfo(profile.teacher_info)
         setTeacherSubjects(subjects)
@@ -125,8 +148,12 @@ export default function MakeupsPage() {
       } else {
         console.error('API errors:', {
           profile: profileRes.status,
-          subjects: subjectsRes.status,
-          groups: groupsRes.status
+          timetable: timetableRes.status
+        })
+        toast({
+          title: 'Erreur',
+          description: 'Impossible de charger les données de l\'emploi du temps',
+          variant: 'destructive',
         })
       }
     } catch (error) {
